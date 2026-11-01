@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-vertical-style="overlay" data-theme-mode="light" data-header-styles="light" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body class="auth-page">
+<div class="container">
+    <div class="row justify-content-center align-items-center authentication authentication-basic h-100">
+        <div class="col-xxl-4 col-xl-5 col-lg-5 col-md-7 col-sm-9 col-12">
+            <div class="my-4 d-flex justify-content-center">
+                <span class="auth-brand-mark">
+                    <img th:src="@{/assets/images/brand/toggle-white.svg}" alt="">
+                    <span><span class="name">Tomcat Deployment Manager</span><span class="tag">Verified WAR deployments over SSH/SFTP and Tomcat Manager</span></span>
+                </span>
+            </div>
+            <div class="card custom-card">
+                <div class="card-body p-5">
+                    <p class="h5 fw-semibold mb-2 text-center">Sign in</p>
+                    <p class="mb-4 text-muted op-7 fw-normal text-center">Use the account your administrator created for you.</p>
+
+                    <div class="alert alert-danger small" th:if="${param.error != null}" role="alert">
+                        Sign-in failed. Check your username and password. After several failed attempts an account is locked for a short time;
+                        an administrator can unlock it.
+                    </div>
+                    <div class="alert alert-success small" th:if="${param.logout != null}" role="status">You have been signed out.</div>
+                    <div class="alert alert-warning small" th:if="${param.expired != null}" role="status">
+                        Your session ended (your account was changed by an administrator, or you signed in elsewhere). Please sign in again.
+                    </div>
+                    <div class="alert alert-success small" th:if="${success}" th:text="${success}" role="status"></div>
+
+                    <form th:action="@{/login}" method="post" novalidate>
+                        <div class="row gy-3">
+                            <div class="col-12">
+                                <label class="form-label text-default" for="username">Username</label>
+                                <input class="form-control form-control-lg" id="username" name="username" placeholder="username"
+                                       autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+                            </div>
+                            <div class="col-12 mb-2">
+                                <label class="form-label text-default d-block" for="password">Password</label>
+                                <div class="input-group">
+                                    <input class="form-control form-control-lg" type="password" id="password" name="password" placeholder="password"
+                                           autocomplete="current-password" required>
+                                    <button class="btn btn-light border" type="button" data-toggle-password="password" aria-label="Show password">Show</button>
+                                </div>
+                            </div>
+                            <div class="col-12 d-grid mt-2">
+                                <button class="btn btn-lg btn-primary btn-wave" type="submit">Sign in</button>
+                            </div>
+                        </div>
+                    </form>
+                    <p class="fs-12 text-muted text-center mt-4 mb-0">Accounts are managed by your administrator. Forgot your password?
+                        Ask an administrator to set a temporary one.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<th:block th:replace="~{fragments/layout :: authScripts}"></th:block>
+</body>
+</html>

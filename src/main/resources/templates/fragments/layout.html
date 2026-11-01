@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<!--/* Shared layout built on the Solic admin template (vertical menu, coloured header). */-->
+<head th:fragment="head(title)">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title th:text="${title} + ' | Tomcat Deployment Manager'">Tomcat Deployment Manager</title>
+    <link rel="icon" th:href="@{/assets/images/brand/toggle-logo.svg}" type="image/svg+xml">
+    <!-- Applies the saved light/dark choice before the page paints -->
+    <script th:src="@{/js/theme-init.js}"></script>
+    <link id="style" th:href="@{/assets/libs/bootstrap/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/assets/css/styles.min.css}" rel="stylesheet">
+    <link th:href="@{/assets/icon-fonts/boxicons/css/boxicons.min.css}" rel="stylesheet">
+    <link th:href="@{/assets/icon-fonts/remixicon/remixicon.css}" rel="stylesheet">
+    <link th:href="@{/assets/libs/node-waves/waves.min.css}" rel="stylesheet">
+    <link th:href="@{/assets/libs/simplebar/simplebar.min.css}" rel="stylesheet">
+    <link th:href="@{/assets/libs/sweetalert2/sweetalert2.min.css}" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+</head>
+<body>
+
+<!--/* Logos in the six variants the template switches between (light/dark menu, coloured header, collapsed menu). */-->
+<th:block th:fragment="logos">
+    <img th:src="@{/assets/images/brand/desktop-logo.svg}" alt="Tomcat Deployment Manager" class="desktop-logo">
+    <img th:src="@{/assets/images/brand/toggle-logo.svg}" alt="Tomcat Deployment Manager" class="toggle-logo">
+    <img th:src="@{/assets/images/brand/desktop-dark.svg}" alt="Tomcat Deployment Manager" class="desktop-dark">
+    <img th:src="@{/assets/images/brand/toggle-dark.svg}" alt="Tomcat Deployment Manager" class="toggle-dark">
+    <img th:src="@{/assets/images/brand/desktop-white.svg}" alt="Tomcat Deployment Manager" class="desktop-white">
+    <img th:src="@{/assets/images/brand/toggle-white.svg}" alt="Tomcat Deployment Manager" class="toggle-white">
+</th:block>
+
+<header th:fragment="header" class="app-header">
+    <div class="main-header-container container-fluid">
+        <div class="header-content-left">
+            <div class="header-element">
+                <div class="horizontal-logo">
+                    <a th:href="@{/}" class="header-logo"><th:block th:replace="~{fragments/layout :: logos}"></th:block></a>
+                </div>
+            </div>
+            <div class="header-element">
+                <a aria-label="Show or hide the menu" class="sidemenu-toggle header-link animated-arrow hor-toggle horizontal-navtoggle"
+                   data-bs-toggle="sidebar" href="javascript:void(0);"><span></span></a>
+            </div>
+            <div class="header-element d-none d-md-flex align-items-center">
+                <span class="header-app-name">Tomcat Deployment Manager</span>
+            </div>
+        </div>
+
+        <div class="header-content-right" sec:authorize="isAuthenticated()">
+            <div class="header-element header-theme-mode">
+                <a href="javascript:void(0);" class="header-link layout-setting" data-theme-toggle aria-label="Switch between light and dark mode" title="Light / dark mode">
+                    <span class="light-layout"><i class="bx bx-moon header-link-icon"></i></span>
+                    <span class="dark-layout"><i class="bx bx-sun header-link-icon"></i></span>
+                </a>
+            </div>
+
+            <div class="header-element notifications-dropdown" id="notification-bell"
+                 th:attr="data-api=@{/api/notifications},data-read-url=@{/api/notifications/read},data-page=@{/notifications}">
+                <a href="javascript:void(0);" class="header-link dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                   aria-expanded="false" aria-label="Notifications" title="Notifications">
+                    <i class="bx bx-bell header-link-icon"></i>
+                    <span class="badge bg-danger rounded-pill header-icon-badge" data-unread hidden>0</span>
+                </a>
+                <div class="main-header-dropdown dropdown-menu dropdown-menu-end notification-menu border-transparent p-0">
+                    <div class="p-3 d-flex align-items-center justify-content-between">
+                        <p class="mb-0 fs-16 fw-semibold">Notifications</p>
+                        <button type="button" class="btn btn-sm btn-primary-light" data-mark-read>Mark all read</button>
+                    </div>
+                    <div class="dropdown-divider m-0"></div>
+                    <div class="notification-scroll" data-list><div class="small text-muted px-3 py-3">Loading…</div></div>
+                    <div class="p-3 border-top d-grid">
+                        <a class="btn btn-primary btn-wave" th:href="@{/notifications}">View all notifications</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-element header-fullscreen d-none d-sm-flex">
+                <a href="javascript:void(0);" class="header-link" data-fullscreen aria-label="Full screen" title="Full screen">
+                    <i class="bx bx-fullscreen full-screen-open header-link-icon"></i>
+                    <i class="bx bx-exit-fullscreen full-screen-close header-link-icon d-none"></i>
+                </a>
+            </div>
+
+            <div class="header-element">
+                <a href="javascript:void(0);" class="header-link dropdown-toggle" id="mainHeaderProfile" data-bs-toggle="dropdown"
+                   data-bs-auto-close="outside" aria-expanded="false" aria-label="Account menu">
+                    <span class="d-flex align-items-center">
+                        <span class="avatar avatar-sm avatar-rounded header-avatar me-sm-2 me-0"
+                              th:text="${#strings.toUpperCase(#strings.substring(#authentication.name, 0, 1))}">U</span>
+                        <span class="d-none d-xl-block header-user-name" th:text="${#authentication.name}">user</span>
+                    </span>
+                </a>
+                <div class="main-header-dropdown dropdown-menu pt-0 overflow-hidden header-profile-dropdown border-transparent dropdown-menu-end" aria-labelledby="mainHeaderProfile">
+                    <div class="main-header-profile p-3 border-bottom text-center">
+                        <p class="fw-semibold mb-1 lh-1 fs-16" th:text="${#authentication.name}">user</p>
+                        <span sec:authorize="hasRole('ADMIN')" class="badge bg-primary-transparent">Administrator</span>
+                        <span sec:authorize="hasRole('DEPLOYMENT_OPERATOR') and !hasRole('ADMIN')" class="badge bg-info-transparent">Deployment operator</span>
+                        <span sec:authorize="hasRole('VIEWER')" class="badge bg-secondary-transparent">Viewer</span>
+                    </div>
+                    <a class="dropdown-item d-flex align-items-center" th:href="@{/account}"><i class="bx bx-user fs-18 me-2 op-7"></i>My account</a>
+                    <a class="dropdown-item d-flex align-items-center" th:href="@{/account/password}"><i class="bx bx-lock-alt fs-18 me-2 op-7"></i>Change password</a>
+                    <a class="dropdown-item d-flex align-items-center border-block-end" th:href="@{/notifications}"><i class="bx bx-bell fs-18 me-2 op-7"></i>Notifications</a>
+                    <form th:action="@{/logout}" method="post" class="m-0">
+                        <button class="dropdown-item d-flex align-items-center" type="submit"><i class="bx bx-log-out fs-18 me-2 op-7"></i>Sign out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<aside th:fragment="sidebar(active)" class="app-sidebar sticky" id="sidebar">
+    <div class="main-sidebar-header">
+        <a th:href="@{/}" class="header-logo"><th:block th:replace="~{fragments/layout :: logos}"></th:block></a>
+    </div>
+    <div class="main-sidebar" id="sidebar-scroll">
+        <nav class="main-menu-container nav nav-pills flex-column sub-open" aria-label="Main menu">
+            <div class="slide-left" id="slide-left">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="#7b8191" width="24" height="24" viewBox="0 0 24 24"><path d="M13.293 6.293 7.586 12l5.707 5.707 1.414-1.414L10.414 12l4.293-4.293z"></path></svg>
+            </div>
+            <ul class="main-menu">
+                <li class="slide__category"><span class="category-name">Overview</span></li>
+                <li class="slide" th:classappend="${active == 'dashboard'} ? ' active'">
+                    <a th:href="@{/}" class="side-menu__item" th:classappend="${active == 'dashboard'} ? ' active'">
+                        <i class="bx bx-home-alt side-menu__icon"></i><span class="side-menu__label">Dashboard</span></a>
+                </li>
+
+                <li class="slide__category"><span class="category-name">Workspace</span></li>
+                <li class="slide" th:classappend="${active == 'infrastructure'} ? ' active'">
+                    <a th:href="@{/infrastructure}" class="side-menu__item" th:classappend="${active == 'infrastructure'} ? ' active'">
+                        <i class="bx bx-server side-menu__icon"></i><span class="side-menu__label">Infrastructure</span></a>
+                </li>
+                <li class="slide" th:classappend="${active == 'applications'} ? ' active'">
+                    <a th:href="@{/applications}" class="side-menu__item" th:classappend="${active == 'applications'} ? ' active'">
+                        <i class="bx bx-grid-alt side-menu__icon"></i><span class="side-menu__label">Applications</span></a>
+                </li>
+                <li class="slide" th:classappend="${active == 'releases'} ? ' active'">
+                    <a th:href="@{/releases}" class="side-menu__item" th:classappend="${active == 'releases'} ? ' active'">
+                        <i class="bx bx-package side-menu__icon"></i><span class="side-menu__label">Release Library</span></a>
+                </li>
+
+                <li class="slide__category"><span class="category-name">Operations</span></li>
+                <li class="slide" th:classappend="${active == 'deployments'} ? ' active'">
+                    <a th:href="@{/deployments}" class="side-menu__item" th:classappend="${active == 'deployments'} ? ' active'">
+                        <i class="bx bx-rocket side-menu__icon"></i><span class="side-menu__label">Deployments</span></a>
+                </li>
+                <li class="slide" th:classappend="${active == 'backups'} ? ' active'">
+                    <a th:href="@{/backups}" class="side-menu__item" th:classappend="${active == 'backups'} ? ' active'">
+                        <i class="bx bx-history side-menu__icon"></i><span class="side-menu__label">Backups &amp; Rollback</span></a>
+                </li>
+                <li class="slide" th:classappend="${active == 'health'} ? ' active'">
+                    <a th:href="@{/health}" class="side-menu__item" th:classappend="${active == 'health'} ? ' active'">
+                        <i class="bx bx-pulse side-menu__icon"></i><span class="side-menu__label">Health Monitoring</span></a>
+                </li>
+                <li class="slide" th:classappend="${active == 'notifications'} ? ' active'">
+                    <a th:href="@{/notifications}" class="side-menu__item" th:classappend="${active == 'notifications'} ? ' active'">
+                        <i class="bx bx-bell side-menu__icon"></i><span class="side-menu__label">Notifications</span></a>
+                </li>
+
+                <th:block sec:authorize="hasRole('ADMIN')">
+                    <li class="slide__category"><span class="category-name">Administration</span></li>
+                    <li class="slide" th:classappend="${active == 'users'} ? ' active'">
+                        <a th:href="@{/admin/users}" class="side-menu__item" th:classappend="${active == 'users'} ? ' active'">
+                            <i class="bx bx-group side-menu__icon"></i><span class="side-menu__label">Users</span></a>
+                    </li>
+                    <li class="slide" th:classappend="${active == 'audit'} ? ' active'">
+                        <a th:href="@{/admin/audit}" class="side-menu__item" th:classappend="${active == 'audit'} ? ' active'">
+                            <i class="bx bx-list-check side-menu__icon"></i><span class="side-menu__label">Audit log</span></a>
+                    </li>
+                    <li class="slide" th:classappend="${active == 'settings'} ? ' active'">
+                        <a th:href="@{/admin/settings}" class="side-menu__item" th:classappend="${active == 'settings'} ? ' active'">
+                            <i class="bx bx-cog side-menu__icon"></i><span class="side-menu__label">Settings</span></a>
+                    </li>
+                </th:block>
+
+                <li class="slide__category"><span class="category-name">Account</span></li>
+                <li class="slide" th:classappend="${active == 'account'} ? ' active'">
+                    <a th:href="@{/account}" class="side-menu__item" th:classappend="${active == 'account'} ? ' active'">
+                        <i class="bx bx-user-circle side-menu__icon"></i><span class="side-menu__label">My account</span></a>
+                </li>
+            </ul>
+            <div class="slide-right" id="slide-right">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="#7b8191" width="24" height="24" viewBox="0 0 24 24"><path d="M10.707 17.707 16.414 12l-5.707-5.707-1.414 1.414L13.586 12l-4.293 4.293z"></path></svg>
+            </div>
+        </nav>
+    </div>
+</aside>
+
+<footer th:fragment="footer" class="footer mt-auto py-3 bg-white text-center">
+    <div class="container">
+        <span class="text-muted">Tomcat Deployment Manager · Version 1 · Verified WAR deployments over SSH/SFTP and Tomcat Manager</span>
+    </div>
+</footer>
+
+<th:block th:fragment="flash">
+    <div th:if="${success}" class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" role="status">
+        <i class="bx bx-check-circle fs-18"></i><span th:text="${success}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>
+    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+        <i class="bx bx-error-circle fs-18"></i><span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>
+</th:block>
+
+<span th:fragment="status(s)" class="badge" th:classappend="${s.badgeClass()}" th:text="${s.label()}"
+      th:title="${s.checkedAt() != null} ? 'Last tested ' + ${@time.format(s.checkedAt())} : 'No connection test recorded'">Never tested</span>
+
+<th:block th:fragment="scripts">
+    <div class="scrollToTop"><span class="arrow"><i class="ri-arrow-up-s-fill fs-20"></i></span></div>
+    <div id="responsive-overlay"></div>
+    <script th:src="@{/assets/libs/popperjs/popper.min.js}"></script>
+    <script th:src="@{/assets/libs/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script th:src="@{/assets/js/defaultmenu.min.js}"></script>
+    <script th:src="@{/assets/libs/node-waves/waves.min.js}"></script>
+    <script th:src="@{/assets/js/sticky.js}"></script>
+    <script th:src="@{/assets/libs/simplebar/simplebar.min.js}"></script>
+    <script th:src="@{/assets/libs/sweetalert2/sweetalert2.min.js}"></script>
+    <script th:src="@{/js/theme.js}"></script>
+    <script th:src="@{/js/app.js}"></script>
+    <script th:src="@{/js/notifications.js}"></script>
+</th:block>
+
+<!--/* Sign-in, first-run setup and error pages: no menu scripts. */-->
+<th:block th:fragment="authScripts">
+    <script th:src="@{/assets/libs/bootstrap/js/bootstrap.bundle.min.js}"></script>
+    <script th:src="@{/assets/libs/sweetalert2/sweetalert2.min.js}"></script>
+    <script th:src="@{/js/theme.js}"></script>
+    <script th:src="@{/js/app.js}"></script>
+</th:block>
+</body>
+</html>

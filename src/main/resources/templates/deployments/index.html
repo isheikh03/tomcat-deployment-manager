@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('deployments')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <div class="eyebrow">DEPLOYMENTS</div>
+            <h1 class="h3 mb-1">Deployment history</h1>
+            <p class="text-secondary mb-0">Every deployment with its exact targets, outcome and logs.</p>
+        </div>
+        <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-primary" th:href="@{/deployments/new}"><i class="bx bx-rocket me-1"></i>New deployment</a>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+
+    <form class="filter-bar mb-3" method="get" th:action="@{/deployments}">
+        <select class="form-select filter-app" name="app" aria-label="Application" data-autosubmit>
+            <option value="">All applications</option>
+            <option th:each="a : ${applications}" th:value="${a.id}" th:text="${a.name}" th:selected="${a.id == app}"></option>
+        </select>
+        <select class="form-select filter-app" name="environment" aria-label="Environment" data-autosubmit>
+            <option value="">All environments</option>
+            <option th:each="e : ${environments}" th:value="${e}" th:text="${e.label()}" th:selected="${e == environment}"></option>
+        </select>
+        <select class="form-select filter-app" name="state" aria-label="Outcome" data-autosubmit>
+            <option value="">All outcomes</option>
+            <option th:each="s : ${states}" th:value="${s}" th:text="${s.label()}" th:selected="${s == state}"></option>
+        </select>
+        <a class="btn btn-link" th:if="${filtered}" th:href="@{/deployments}">Clear filters</a>
+    </form>
+
+    <section class="panel empty-state" th:if="${runs.totalElements == 0}">
+        <div class="empty-icon"><i class="bx bx-rocket"></i></div>
+        <h2 class="h6" th:text="${filtered} ? 'No deployments match these filters' : 'No deployments yet'">No deployments yet</h2>
+        <p class="text-secondary small mb-3" th:unless="${filtered}">Start one with the deployment wizard: choose a release, the targets, review the preflight, confirm.</p>
+        <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" th:unless="${filtered}" class="btn btn-primary btn-sm" th:href="@{/deployments/new}">New deployment</a>
+    </section>
+
+    <section class="panel p-0" th:if="${runs.totalElements > 0}">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>#</th><th>Release</th><th>Environment</th><th>Outcome</th><th>Requested</th><th>Duration</th></tr></thead>
+                <tbody>
+                <tr th:each="r : ${runs.content}" class="row-link" th:attr="data-href=@{/deployments/{id}(id=${r.id})}">
+                    <td><a class="fw-semibold" th:href="@{/deployments/{id}(id=${r.id})}" th:text="'#' + ${r.id}"></a></td>
+                    <td><span class="badge text-bg-dark me-1" th:if="${r.rollback}">Rollback</span><span th:text="${r.application.name}"></span> <strong th:text="${r.versionLabel}"></strong>
+                        <div class="small text-secondary" th:if="${r.serverGroupName != null}" th:text="'Group: ' + ${r.serverGroupName}"></div></td>
+                    <td><span class="env-badge" th:classappend="'env-' + ${r.environment.name().toLowerCase()}" th:text="${r.environment.label()}"></span></td>
+                    <td><span class="badge" th:classappend="${r.state.badgeClass()}" th:text="${r.state.label()}"></span>
+                        <div class="small text-secondary text-truncate" style="max-width: 320px" th:text="${r.summary}"></div></td>
+                    <td class="small"><span th:text="${@time.format(r.requestedAt)}"></span><div class="text-secondary" th:text="'by ' + ${r.requestedBy}"></div></td>
+                    <td class="small text-nowrap" th:text="${r.state.isActive()} ? 'running…' : ${@time.duration(r.startedAt, r.finishedAt)}"></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top small" th:if="${runs.totalPages > 1}">
+            <span class="text-secondary" th:text="'Page ' + (${runs.number} + 1) + ' of ' + ${runs.totalPages}"></span>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item" th:classappend="${runs.first} ? ' disabled'"><a class="page-link" th:href="@{/deployments(app=${app},environment=${environment},state=${state},page=${runs.number - 1})}">Previous</a></li>
+                <li class="page-item" th:classappend="${runs.last} ? ' disabled'"><a class="page-link" th:href="@{/deployments(app=${app},environment=${environment},state=${state},page=${runs.number + 1})}">Next</a></li>
+            </ul>
+        </div>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('health')}"></aside>
+<main class="main-content app-content" id="health" th:attr="data-check-base=@{/api/health/instances/}">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/health}">Health monitoring</a></li>
+        <li class="breadcrumb-item active" th:text="${instance.name}">instance</li>
+    </ol></nav>
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div class="min-w-0">
+            <div class="eyebrow">APPLICATION HEALTH</div>
+            <h1 class="h3 mb-1" th:text="${instance.name}">instance</h1>
+            <div class="d-flex flex-wrap gap-2 align-items-center small">
+                <span class="badge fs-6" th:classappend="${row.badgeClass()}" th:text="${row.statusLabel()}"></span>
+                <span th:if="${instance.environment != null}" class="env-badge" th:classappend="'env-' + ${instance.environment.name().toLowerCase()}" th:text="${instance.environment.label()}"></span>
+                <span class="text-secondary" th:text="${instance.host.name} + ' · ' + ${instance.host.hostname}"></span>
+                <a th:href="@{/infrastructure/instances/{id}(id=${instance.id})}">Instance settings →</a>
+            </div>
+        </div>
+        <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" th:if="${row.checkable()}" type="button" class="btn btn-primary" th:attr="data-check=${instance.id}">Check now</button>
+    </div>
+
+    <div class="alert alert-secondary small" th:if="${row.notMonitored() != null}" th:text="'Not monitored periodically: ' + ${row.notMonitored()}"></div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-5">
+            <section class="panel h-100">
+                <h2 class="h6">Check</h2>
+                <dl class="row small mb-0">
+                    <dt class="col-5">URL</dt><dd class="col-7 text-break"><code th:text="${row.url() ?: '—'}"></code></dd>
+                    <dt class="col-5">Healthy when</dt><dd class="col-7" th:text="${expectation}"></dd>
+                    <dt class="col-5">Last check</dt><dd class="col-7" th:text="${row.lastCheckedAt() != null} ? ${@time.format(row.lastCheckedAt())} + ' (' + ${row.lastElapsedMs()} + ' ms)' : 'Never'"></dd>
+                    <dt class="col-5">Last result</dt><dd class="col-7" th:text="${row.lastDetail() ?: '—'}"></dd>
+                    <dt class="col-5">Last success</dt><dd class="col-7" th:text="${row.lastSuccessAt() != null} ? ${@time.format(row.lastSuccessAt())} : '—'"></dd>
+                    <dt class="col-5">Consecutive failures</dt><dd class="col-7"><span th:text="${row.consecutiveFailures()}"></span>
+                        <span class="text-secondary" th:if="${row.unhealthySince() != null}" th:text="' · failing since ' + ${@time.format(row.unhealthySince())}"></span></dd>
+                    <dt class="col-5">Last recovery</dt><dd class="col-7" th:text="${row.lastRecoveredAt() != null} ? ${@time.format(row.lastRecoveredAt())} : '—'"></dd>
+                </dl>
+            </section>
+        </div>
+        <div class="col-12 col-xl-7">
+            <section class="panel h-100">
+                <h2 class="h6">Recent results <span class="text-secondary fw-normal small">(newest first)</span></h2>
+                <div class="health-strip mb-2" th:unless="${#lists.isEmpty(history)}" aria-label="Recent results, newest on the left">
+                    <span th:each="h : ${history}" th:classappend="${h.healthy} ? ' ok' : ' bad'"
+                          th:title="${@time.format(h.checkedAt)} + ': ' + ${h.detail}"></span>
+                </div>
+                <p class="small text-secondary mb-0" th:if="${#lists.isEmpty(history)}">No checks recorded yet.</p>
+            </section>
+        </div>
+    </div>
+
+    <section class="panel p-0" th:unless="${#lists.isEmpty(history)}">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0 small">
+                <thead><tr><th>Checked</th><th>Result</th><th>HTTP</th><th>Time</th><th>Detail</th><th>Trigger</th></tr></thead>
+                <tbody>
+                <tr th:each="h : ${history}">
+                    <td class="text-nowrap" th:text="${@time.format(h.checkedAt)}"></td>
+                    <td><span class="badge" th:classappend="${h.healthy} ? ' text-bg-success' : ' text-bg-danger'" th:text="${h.healthy} ? 'Healthy' : 'Failed'"></span></td>
+                    <td th:text="${h.statusCode ?: '—'}"></td>
+                    <td class="text-nowrap" th:text="${h.elapsedMs} + ' ms'"></td>
+                    <td class="text-break" th:text="${h.detail}"></td>
+                    <td class="text-nowrap" th:text="${h.trigger.name() == 'MANUAL'} ? 'Manual · ' + ${h.checkedBy} : 'Scheduled'"></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/health.js}"></script>
+</body>
+</html>

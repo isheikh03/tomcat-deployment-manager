@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('backups')}"></aside>
+<main class="main-content app-content" id="backups" th:attr="data-api=@{/api/backups/}">
+<div class="container-fluid">
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <div class="eyebrow">BACKUPS &amp; ROLLBACK</div>
+            <h1 class="h3 mb-1">Restore points</h1>
+            <p class="text-secondary mb-0">What each deployment can be rolled back to. Roll back from the deployment's page, on its target.</p>
+        </div>
+        <a class="btn btn-outline-primary" th:href="@{/deployments}">Deployment history</a>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Server backups</div><div class="metric-value" th:text="${serverBackupCount}">0</div><div class="metric-note" th:text="${totalSize} + ' on disk'"></div></div></div>
+        <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Current rollback points</div><div class="metric-value" th:text="${protectedCount}">0</div><div class="metric-note">Kept by retention; deletable with confirmation</div></div></div>
+        <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Missing files</div><div class="metric-value" th:classappend="${missingCount > 0} ? ' text-danger'" th:text="${missingCount}">0</div><div class="metric-note">Should be 0</div></div></div>
+        <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Retention</div><div class="metric-value" th:text="${retention > 0} ? ${retention} : '∞'">10</div><div class="metric-note">Server backups kept per context</div></div></div>
+    </div>
+    <p class="small text-secondary mb-3">Stored in <code th:text="${backupDir}"></code> (read-only files, SHA-256 recorded). Retention never removes the current rollback point of a deployment; an administrator can delete it after an explicit confirmation.</p>
+
+    <section class="panel empty-state" th:if="${#lists.isEmpty(entries)}">
+        <div class="empty-icon"><i class="bx bx-history"></i></div>
+        <h2 class="h6">No restore points yet</h2>
+        <p class="text-secondary small mb-0">When a deployment replaces an application, the current WAR is backed up first (or the previous library release is recorded). Those restore points appear here.</p>
+    </section>
+
+    <section class="panel p-0" th:unless="${#lists.isEmpty(entries)}">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead><tr><th>Instance · context</th><th>Restore point</th><th>Taken</th><th>Integrity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                <tr th:each="e : ${entries}" th:attr="data-backup-row=${e.backup().id}">
+                    <td><strong th:text="${e.target().instanceName}"></strong>
+                        <div class="small"><code th:text="${e.target().contextPath}"></code> <span class="text-secondary" th:text="${e.target().targetFilename}"></span></div></td>
+                    <td class="small">
+                        <span th:if="${e.serverBackup()}" th:text="'Server WAR · ' + ${e.sizeLabel()}"></span>
+                        <span th:unless="${e.serverBackup()}">Previous library release</span>
+                        <div class="text-secondary" th:if="${e.backup().sha256 != null}"><code th:text="${#strings.substring(e.backup().sha256, 0, 12)} + '…'"></code></div></td>
+                    <td class="small"><span th:text="${@time.format(e.backup().createdAt)}"></span>
+                        <div><a th:href="@{/deployments/{id}(id=${e.target().run.id})}" th:text="'Deployment #' + ${e.target().run.id}"></a></div></td>
+                    <td class="small" data-integrity>
+                        <span th:if="${!e.fileExists()}" class="badge text-bg-danger">File missing</span>
+                        <th:block th:if="${e.fileExists()}">
+                            <span th:if="${e.backup().lastVerifiedAt == null}" class="badge text-bg-light border">Not re-verified</span>
+                            <span th:if="${e.backup().lastVerifiedAt != null}" class="badge" th:classappend="${e.backup().lastVerificationOk} ? ' text-bg-success' : ' text-bg-danger'"
+                                  th:text="(${e.backup().lastVerificationOk} ? 'Verified ' : 'Failed ') + ${@time.format(e.backup().lastVerifiedAt)}"></span>
+                        </th:block></td>
+                    <td class="small">
+                        <span th:if="${e.rollbackPoint()}" class="badge text-bg-primary" title="The deployment can still be rolled back to this">Current rollback point</span>
+                        <span th:if="${!e.rollbackPoint() and e.target().rolledBackByRunId != null}" class="badge text-bg-secondary">Used by rollback #<span th:text="${e.target().rolledBackByRunId}"></span></span>
+                        <span th:if="${!e.rollbackPoint() and e.target().rolledBackByRunId == null}" class="badge text-bg-light border">Superseded</span></td>
+                    <td class="text-end text-nowrap">
+                        <a th:if="${e.rollbackPoint()}" sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-sm btn-outline-danger"
+                           th:href="@{/deployments/{id}(id=${e.target().run.id})}"><i class="bx bx-undo me-1"></i>Roll back…</a>
+                        <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" type="button" class="btn btn-sm btn-outline-secondary" th:attr="data-verify=${e.backup().id}">Verify</button>
+                        <button sec:authorize="hasRole('ADMIN')" th:if="${e.serverBackup()}" type="button" class="btn btn-sm btn-outline-danger"
+                                th:attr="data-delete=${e.backup().id},data-label=${e.target().instanceName + ' ' + e.target().contextPath},data-rollback-point=${e.rollbackPoint()},data-library-fallback=${e.target().previousReleaseId != null}">Delete</button>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/backups.js}"></script>
+</body>
+</html>

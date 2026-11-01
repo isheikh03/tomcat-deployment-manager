@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('health')}"></aside>
+<main class="main-content app-content" id="health" th:attr="data-check-base=@{/api/health/instances/}">
+<div class="container-fluid">
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <div class="eyebrow">HEALTH MONITORING</div>
+            <h1 class="h3 mb-1">Application health</h1>
+            <p class="text-secondary mb-0">The application's own health URL on each Tomcat instance. Host and Tomcat connectivity are tested separately on the instance page.</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <div class="form-check form-switch mb-0 small">
+                <input class="form-check-input" type="checkbox" role="switch" id="auto-refresh" data-auto-refresh checked>
+                <label class="form-check-label" for="auto-refresh">Auto-refresh</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-secondary small" th:unless="${overview.monitoringEnabled()}">
+        Periodic monitoring is switched off in <a href="/admin/settings">Settings</a>. Manual checks still work.
+    </div>
+    <p class="small text-secondary" th:if="${overview.monitoringEnabled()}"
+       th:text="'Checked every ' + ${overview.intervalSeconds() >= 60 ? (overview.intervalSeconds() / 60) + ' min' : overview.intervalSeconds() + ' s'} + '. One failed check marks an application Degraded; ' + ${overview.unhealthyAfter()} + ' in a row mark it Unhealthy. Instances with a deployment in progress are skipped (the deployment checks health itself).'"></p>
+
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg"><div class="metric-card"><div class="metric-label">Unhealthy</div><div class="metric-value" th:classappend="${overview.unhealthy() > 0} ? ' text-danger'" th:text="${overview.unhealthy()}">0</div></div></div>
+        <div class="col-6 col-lg"><div class="metric-card"><div class="metric-label">Degraded</div><div class="metric-value" th:classappend="${overview.degraded() > 0} ? ' text-warning-emphasis'" th:text="${overview.degraded()}">0</div></div></div>
+        <div class="col-6 col-lg"><div class="metric-card"><div class="metric-label">Healthy</div><div class="metric-value text-success" th:text="${overview.healthy()}">0</div></div></div>
+        <div class="col-6 col-lg"><div class="metric-card"><div class="metric-label">Not checked yet</div><div class="metric-value" th:text="${overview.unchecked()}">0</div></div></div>
+        <div class="col-6 col-lg"><div class="metric-card"><div class="metric-label">Not monitored</div><div class="metric-value text-secondary" th:text="${overview.notMonitored()}">0</div></div></div>
+    </div>
+
+    <section class="panel empty-state" th:if="${#lists.isEmpty(overview.rows())}">
+        <div class="empty-icon"><i class="bx bx-pulse"></i></div>
+        <h2 class="h6">No Tomcat instances yet</h2>
+        <p class="text-secondary small mb-0">Add an instance with an application health URL under Infrastructure.</p>
+    </section>
+
+    <section class="panel p-0 mb-3" th:unless="${#lists.isEmpty(overview.rows())}">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Instance</th><th>Status</th><th>Last check</th><th>Last success</th><th>Failures</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                <tr th:each="r : ${overview.rows()}" class="row-link" th:attr="data-href=@{/health/instances/{id}(id=${r.instanceId()})}">
+                    <td class="min-w-0"><a class="fw-semibold" th:href="@{/health/instances/{id}(id=${r.instanceId()})}" th:text="${r.instanceName()}"></a>
+                        <span th:if="${r.environment() != null}" class="env-badge ms-1" th:classappend="'env-' + ${r.environment().name().toLowerCase()}" th:text="${r.environment().label()}"></span>
+                        <div class="small text-secondary text-break" th:text="${r.url() ?: 'No health URL'}"></div></td>
+                    <td><span class="badge" th:classappend="${r.badgeClass()}" th:text="${r.statusLabel()}"></span>
+                        <div class="small text-secondary" th:if="${r.notMonitored() != null}" th:text="${r.notMonitored()}"></div>
+                        <div class="small text-secondary text-truncate" style="max-width: 280px" th:if="${r.lastDetail() != null}" th:text="${r.lastDetail()}"></div></td>
+                    <td class="small text-nowrap" th:text="${r.lastCheckedAt() != null} ? ${@time.format(r.lastCheckedAt())} : '—'"></td>
+                    <td class="small text-nowrap" th:text="${r.lastSuccessAt() != null} ? ${@time.format(r.lastSuccessAt())} : '—'"></td>
+                    <td class="small"><span th:text="${r.consecutiveFailures()}"></span>
+                        <div class="text-secondary" th:if="${r.unhealthySince() != null}" th:text="'since ' + ${@time.format(r.unhealthySince())}"></div></td>
+                    <td class="text-end">
+                        <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" th:if="${r.checkable()}" type="button" class="btn btn-sm btn-outline-primary"
+                                th:attr="data-check=${r.instanceId()}">Check now</button></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-6">
+            <section class="panel h-100">
+                <h2 class="h6">Recent recoveries</h2>
+                <p class="small text-secondary" th:if="${#lists.isEmpty(recoveries)}">No application has recovered from a failure yet.</p>
+                <ul class="list-unstyled small mb-0" th:unless="${#lists.isEmpty(recoveries)}">
+                    <li class="d-flex justify-content-between border-bottom py-2" th:each="x : ${recoveries}">
+                        <a th:href="@{/health/instances/{id}(id=${x.instance.id})}" th:text="${x.instance.name}"></a>
+                        <span class="text-secondary" th:text="'healthy again ' + ${@time.format(x.status.lastRecoveredAt)}"></span></li>
+                </ul>
+            </section>
+        </div>
+        <div class="col-12 col-xl-6">
+            <section class="panel h-100">
+                <div class="d-flex justify-content-between align-items-center"><h2 class="h6">Recent rollbacks</h2><a class="small" th:href="@{/backups}">Restore points →</a></div>
+                <p class="small text-secondary" th:if="${#lists.isEmpty(rollbacks)}">No rollbacks yet.</p>
+                <ul class="list-unstyled small mb-0" th:unless="${#lists.isEmpty(rollbacks)}">
+                    <li class="d-flex justify-content-between align-items-center border-bottom py-2" th:each="r : ${rollbacks}">
+                        <a th:href="@{/deployments/{id}(id=${r.id})}" th:text="'#' + ${r.id} + ' ' + ${r.application.name} + ' → ' + ${r.versionLabel}"></a>
+                        <span><span class="badge" th:classappend="${r.state.badgeClass()}" th:text="${r.state.label()}"></span>
+                            <span class="text-secondary ms-1" th:text="${@time.format(r.requestedAt)}"></span></span></li>
+                </ul>
+            </section>
+        </div>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/health.js}"></script>
+</body>
+</html>

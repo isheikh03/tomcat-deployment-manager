@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: tdm-postgres
+    environment:
+      POSTGRES_DB: tomcat_manager
+      POSTGRES_USER: tomcat_manager
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - tdm_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tomcat_manager -d tomcat_manager"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  tdm_pgdata:

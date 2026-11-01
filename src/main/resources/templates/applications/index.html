@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('applications')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <div class="eyebrow">APPLICATION REGISTRY</div>
+            <h1 class="h3 mb-1">Applications</h1>
+            <p class="text-secondary mb-0">The systems you deploy. Each has releases and compatibility requirements.</p>
+        </div>
+        <a sec:authorize="hasRole('ADMIN')" class="btn btn-primary" th:href="@{/applications/new}"><i class="bx bx-plus me-1"></i>Register application</a>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+
+    <form class="filter-bar mb-3" method="get" th:action="@{/applications}" role="search" th:unless="${#lists.isEmpty(applications) and #strings.isEmpty(q)}">
+        <input class="form-control" type="search" name="q" th:value="${q}" placeholder="Search applications…" aria-label="Search applications">
+        <button class="btn btn-outline-secondary" type="submit">Search</button>
+        <a class="btn btn-link" th:if="${!#strings.isEmpty(q)}" th:href="@{/applications}">Clear</a>
+    </form>
+
+    <section class="panel empty-state" th:if="${#lists.isEmpty(applications)}">
+        <div class="empty-icon"><i class="bx bx-grid-alt"></i></div>
+        <h2 class="h6" th:text="${#strings.isEmpty(q)} ? 'No applications registered yet' : 'No applications match your search'">No applications</h2>
+        <p class="text-secondary small mb-3" th:if="${#strings.isEmpty(q)}">Register an application to start uploading its WAR releases.</p>
+        <a sec:authorize="hasRole('ADMIN')" th:if="${#strings.isEmpty(q)}" class="btn btn-primary btn-sm" th:href="@{/applications/new}">Register application</a>
+    </section>
+
+    <div class="app-grid" th:unless="${#lists.isEmpty(applications)}">
+        <a class="app-card" th:each="a : ${applications}" th:href="@{/applications/{id}(id=${a.id})}"
+           th:with="s=${stats.getOrDefault(a.id, noStats)}">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <h2 class="h6 mb-1 text-truncate" th:text="${a.name}">app</h2>
+                <span class="badge text-bg-light border" th:text="${s.releaseCount() == 1 ? '1 release' : s.releaseCount() + ' releases'}">0 releases</span>
+            </div>
+            <p class="small text-secondary mb-3 app-card-desc" th:text="${a.description ?: 'No description'}"></p>
+            <div class="req-chips">
+                <span class="req-chip" th:text="${a.servletApi.name() == 'DETECT' ? 'Servlet API: detect' : (a.servletApi.name() == 'JAKARTA' ? 'jakarta.servlet' : 'javax.servlet')}"></span>
+                <span class="req-chip" th:if="${a.minJavaVersion != null or a.maxJavaVersion != null}"
+                      th:text="'Java ' + (${a.minJavaVersion} ?: '?') + (${a.maxJavaVersion != null} ? '–' + ${a.maxJavaVersion} : '+')"></span>
+                <span class="req-chip" th:if="${!#lists.isEmpty(a.supportedTomcatList)}" th:text="'Tomcat ' + ${#strings.listJoin(a.supportedTomcatList, ', ')}"></span>
+            </div>
+            <div class="small text-secondary mt-3" th:text="${s.latestUpload() != null} ? 'Last upload ' + ${@time.format(s.latestUpload())} : 'No uploads yet'"></div>
+        </a>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

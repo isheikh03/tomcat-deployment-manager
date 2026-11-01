@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('deployments')}"></aside>
+<main class="main-content app-content" id="deployment"
+      th:attr="data-status-url=@{/api/deployments/{id}(id=${run.id})},data-cancel-url=@{/api/deployments/{id}/cancel(id=${run.id})},data-reconcile-url=@{/api/deployments/{id}/targets/(id=${run.id})},data-rollback-preview-url=@{/api/rollbacks/preview},data-rollback-url=@{/api/rollbacks},data-deployment-base=@{/deployments/},data-rollback=${run.rollback}">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/deployments}">Deployments</a></li>
+        <li class="breadcrumb-item" th:if="${rollbackOfRunId != null}"><a th:href="@{/deployments/{id}(id=${rollbackOfRunId})}" th:text="'#' + ${rollbackOfRunId}">#1</a></li>
+        <li class="breadcrumb-item active" th:text="'#' + ${run.id}">#1</li>
+    </ol></nav>
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div class="min-w-0">
+            <div class="eyebrow" th:text="(${run.rollback} ? 'ROLLBACK #' : 'DEPLOYMENT #') + ${run.id}">DEPLOYMENT</div>
+            <h1 class="h3 mb-1" th:unless="${run.rollback}"><a class="text-reset" th:href="@{/releases/{id}(id=${run.release.id})}"><span th:text="${run.application.name}">app</span> <span class="text-primary" th:text="${run.release.versionLabel}">1.0</span></a></h1>
+            <th:block th:if="${run.rollback}">
+                <h1 class="h3 mb-1"><span th:text="'Roll back ' + ${run.application.name}">app</span>
+                    <span class="text-secondary">to</span> <span class="text-primary" th:text="${run.versionLabel}">1.0</span></h1>
+                <p class="small mb-1"><span class="text-secondary">Restores</span> <span th:text="${run.restoreDescription}"></span>
+                    <span class="text-secondary" th:if="${rollbackOfRunId != null}">· undoes</span>
+                    <a th:if="${rollbackOfRunId != null}" th:href="@{/deployments/{id}(id=${rollbackOfRunId})}" th:text="'deployment #' + ${rollbackOfRunId}"></a></p>
+            </th:block>
+            <div class="d-flex flex-wrap gap-2 align-items-center small">
+                <span class="badge fs-6" data-run-state th:classappend="${run.state.badgeClass()}" th:text="${run.state.label()}">Running</span>
+                <span class="env-badge" th:classappend="'env-' + ${run.environment.name().toLowerCase()}" th:text="${run.environment.label()}"></span>
+                <span class="text-secondary" th:text="${run.strategy.name() == 'SEQUENTIAL'} ? 'One at a time' : 'Parallel ×' + ${run.maxParallel}"></span>
+                <span class="text-secondary" th:if="${run.serverGroupName != null}" th:text="'· Group ' + ${run.serverGroupName}"></span>
+                <span class="text-secondary" th:text="'· Requested by ' + ${run.requestedBy} + ' at ' + ${@time.format(run.requestedAt)}"></span>
+            </div>
+        </div>
+        <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-outline-danger" type="button" data-cancel hidden>Cancel deployment</button>
+    </div>
+
+    <div class="alert small" data-run-summary hidden></div>
+    <section class="panel mb-3">
+        <div class="d-flex justify-content-between small mb-1"><span data-progress-label>Loading…</span><span data-progress-count></span></div>
+        <div class="progress" role="progressbar" aria-label="Deployment progress"><div class="progress-bar" data-progress-bar style="width:0%"></div></div>
+    </section>
+
+    <div class="target-cards" data-targets sec:authorize="hasRole('ADMIN')" data-can-reconcile="true" data-can-rollback="true"></div>
+    <div class="target-cards" data-targets sec:authorize="hasRole('DEPLOYMENT_OPERATOR') and !hasRole('ADMIN')" data-can-rollback="true"></div>
+    <div class="target-cards" data-targets sec:authorize="!hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')"></div>
+
+    <section class="panel p-0 mt-3">
+        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+            <h2 class="h6 mb-0">Log</h2>
+            <span class="small text-secondary" data-log-hint>Updates automatically while the deployment runs.</span>
+        </div>
+        <div class="log-view" data-logs aria-live="polite"></div>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/deployment-detail.js}"></script>
+</body>
+</html>

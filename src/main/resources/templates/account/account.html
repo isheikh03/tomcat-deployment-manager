@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('account')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <div class="page-intro mb-4">
+        <div class="eyebrow">MY ACCOUNT</div>
+        <h1 class="h3 mb-1" th:text="${user.label}">user</h1>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+    <section class="panel" style="max-width: 720px">
+        <dl class="row small mb-3">
+            <dt class="col-4">Username</dt><dd class="col-8"><code th:text="${user.username}"></code></dd>
+            <dt class="col-4">Role</dt><dd class="col-8"><strong th:text="${user.role.label()}"></strong><div class="text-secondary" th:text="${user.role.description()}"></div></dd>
+            <dt class="col-4">Email</dt><dd class="col-8" th:text="${user.email ?: '—'}"></dd>
+            <dt class="col-4">Last sign-in</dt><dd class="col-8" th:text="${@time.format(user.lastLoginAt)}"></dd>
+            <dt class="col-4">Password changed</dt><dd class="col-8" th:text="${@time.format(user.passwordChangedAt)}"></dd>
+        </dl>
+        <a class="btn btn-primary" th:href="@{/account/password}">Change password</a>
+        <p class="small text-secondary mt-3 mb-0">Your role, name and email are managed by an administrator.</p>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

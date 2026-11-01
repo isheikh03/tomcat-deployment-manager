@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('infrastructure')}"></aside>
+<main class="main-content app-content" th:with="ssh=${instance.deploymentMethod.name() == 'SSH_SFTP'}">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure/hosts/{id}(id=${instance.host.id})}" th:text="${instance.host.name}">host</a></li>
+        <li class="breadcrumb-item active" th:text="${instance.name}">instance</li>
+    </ol></nav>
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <div class="eyebrow">TOMCAT INSTANCE</div>
+            <h1 class="h3 mb-1"><span th:text="${instance.name}">instance</span>
+                <span class="badge align-middle fs-6" th:classappend="${instance.enabled ? ' text-bg-success' : ' text-bg-secondary'}" th:text="${instance.enabled ? 'Enabled' : 'Disabled'}"></span></h1>
+            <p class="text-secondary mb-0">on <a th:href="@{/infrastructure/hosts/{id}(id=${instance.host.id})}" th:text="${instance.host.name + ' (' + instance.host.hostname + ')'}"></a></p>
+        </div>
+        <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-secondary" th:href="@{/infrastructure/instances/{id}/edit(id=${instance.id})}">Edit instance</a>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+    <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert" th:if="${instance.environment == null}">
+        <span><strong>No environment assigned.</strong> This instance cannot receive deployments until it belongs to Development, Testing, Staging or Production.</span>
+        <a sec:authorize="hasRole('ADMIN')" class="btn btn-sm btn-warning" th:href="@{/infrastructure/instances/{id}/edit(id=${instance.id})} + '#environment1'">Assign environment</a>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-5">
+            <section class="panel h-100">
+                <h2 class="h6 mb-3">Configuration</h2>
+                <dl class="row small mb-0 detail-list">
+                    <dt class="col-5">Environment</dt><dd class="col-7"><span class="env-badge" th:classappend="${instance.environment == null ? 'env-none' : 'env-' + instance.environment.name().toLowerCase()}" th:text="${instance.environment == null ? 'Not assigned: deployments are blocked' : instance.environment.label()}"></span></dd>
+                    <dt class="col-5">CATALINA_BASE</dt><dd class="col-7"><code th:text="${instance.catalinaBase}"></code></dd>
+                    <dt class="col-5">Deployment directory</dt><dd class="col-7"><code th:text="${instance.remoteDeploymentDirectory}"></code></dd>
+                    <dt class="col-5">Deployment filename</dt>
+                    <dd class="col-7"><th:block th:if="${instance.deploymentFilename != null}"><code th:text="${instance.deploymentFilename}"></code> → context <code th:text="${instance.deploymentContextPath}"></code></th:block>
+                        <span th:if="${instance.deploymentFilename == null}" class="badge text-bg-warning">Not set: edit the instance before deploying</span></dd>
+                    <dt class="col-5">Runtime</dt><dd class="col-7" th:text="(${instance.tomcatVersion != null} ? 'Tomcat ' + ${instance.tomcatVersion} : 'Tomcat version unknown') + ' · ' + (${instance.javaVersion != null} ? 'Java ' + ${instance.javaVersion} : 'Java version unknown')"></dd>
+                    <dt class="col-5">Backup</dt>
+                    <dd class="col-7"><span th:if="${instance.backupEnabled}" class="badge text-bg-success">On</span>
+                        <span th:unless="${instance.backupEnabled}" class="badge text-bg-warning">Off: no rollback point</span></dd>
+                    <dt class="col-5">Health check</dt>
+                    <dd class="col-7"><span th:if="${instance.healthCheckEnabled}" class="badge text-bg-success">On</span>
+                        <span th:unless="${instance.healthCheckEnabled}" class="badge text-bg-warning">Off: deployments are not verified</span>
+                        <a class="small ms-1" th:href="@{/health/instances/{id}(id=${instance.id})}">Health history →</a></dd>
+                    <th:block th:if="${instance.healthCheckEnabled}">
+                        <dt class="col-5">Health policy</dt>
+                        <dd class="col-7 small">
+                            <span th:text="'HTTP ' + ${instance.healthExpectedStatus ?: '200-299'} + (${instance.healthExpectedText != null} ? ' containing &quot;' + ${instance.healthExpectedText} + '&quot;' : '')"></span>
+                            · <span th:text="${instance.healthConsecutiveSuccesses != null} ? ${instance.healthConsecutiveSuccesses} + ' consecutive' : 'default consecutive count'"></span>
+                            · <span th:text="${instance.startupTimeoutSeconds != null} ? ${instance.startupTimeoutSeconds} + ' s startup timeout' : 'default startup timeout'"></span></dd>
+                        <dt class="col-5">Monitoring</dt>
+                        <dd class="col-7"><span th:if="${instance.monitoringEnabled}" class="badge text-bg-success">Periodic checks on</span>
+                            <span th:unless="${instance.monitoringEnabled}" class="badge text-bg-secondary">Off: manual checks only</span></dd>
+                    </th:block>
+                    <dt class="col-5">HTTP port</dt><dd class="col-7" th:text="${instance.httpPort ?: '—'}"></dd>
+                    <dt class="col-5">Health URL</dt><dd class="col-7 text-break" th:text="${instance.healthUrl ?: '—'}"></dd>
+                    <dt class="col-5">Deployment method</dt><dd class="col-7" th:text="${ssh ? 'SSH / SFTP (host credentials)' : 'Tomcat Manager'}"></dd>
+                    <th:block th:unless="${ssh}">
+                        <dt class="col-5">Manager URL</dt><dd class="col-7 text-break"><code th:text="${instance.managerProtocol.name().toLowerCase() + '://' + (instance.managerHost ?: instance.host.hostname) + ':' + instance.managerPort + (instance.managerEndpoint ?: '/manager/text')}"></code></dd>
+                        <dt class="col-5">Manager account</dt><dd class="col-7" th:text="${instance.managerUsername ?: '—'}"></dd>
+                        <dt class="col-5">Manager password</dt><dd class="col-7" th:text="${instance.hasManagerSecret() ? 'Stored' : 'None'}"></dd>
+                    </th:block>
+                    <dt class="col-5">Timeout / retries</dt><dd class="col-7" th:text="${instance.timeoutSeconds + ' s / ' + instance.maxRetries}"></dd>
+                    <dt class="col-5">Groups</dt><dd class="col-7"><span th:each="g : ${instance.groups}" class="badge text-bg-light border me-1" th:text="${g.name}"></span><span th:if="${#sets.isEmpty(instance.groups)}">—</span></dd>
+                    <dt class="col-5">Deployment readiness</dt>
+                    <dd class="col-7"><span th:replace="~{fragments/layout :: status(${instanceStatus})}"></span>
+                        <div class="text-secondary mt-1" th:if="${instanceStatus.state().name() != 'VERIFIED'}">Requires a successful connection test within the last 24 hours.</div></dd>
+                </dl>
+            </section>
+        </div>
+        <div class="col-12 col-xl-7">
+            <section class="panel h-100" data-connectivity
+                     th:attr="data-test-url=@{/api/connectivity-tests/instances/{id}(id=${instance.id})},data-history-url=@{/api/connectivity-tests/instances/{id}(id=${instance.id})},data-trust-url=@{/api/hosts/{id}/host-key/trust(id=${instance.host.id})},data-pinned=${instance.host.hasPinnedHostKey()}">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h6 mb-0">Connection test</h2>
+                    <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-primary btn-sm" data-run-test>Test connection</button>
+                </div>
+                <p class="small text-secondary" th:if="${ssh}">Verifies SSH access through the host's credentials and pinned host key, then checks that the deployment directory exists and is writable. Nothing is written to the server.</p>
+                <p class="small text-secondary" th:unless="${ssh}">Calls the read-only Manager commands <code>serverinfo</code> and <code>list</code> to verify the endpoint, TLS certificate, credentials and <code>manager-script</code> role. No application is changed.</p>
+                <div sec:authorize="hasRole('ADMIN')" data-can-trust></div>
+                <div data-result><div class="text-secondary small">Loading latest result…</div></div>
+                <h3 class="h6 mt-4 mb-2">History</h3>
+                <div data-history class="small"></div>
+            </section>
+        </div>
+    </div>
+    <section class="panel mt-3 p-0">
+        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+            <h2 class="h6 mb-0">Currently deployed <span class="text-secondary fw-normal small">(verified by this tool)</span></h2>
+            <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-sm btn-outline-primary" th:href="@{/deployments/new}">Deploy a release</a>
+        </div>
+        <div class="empty-state py-4" th:if="${#lists.isEmpty(currentDeployments)}">
+            <p class="small text-secondary mb-0">No release has been deployed here by this tool yet.</p>
+        </div>
+        <div class="table-responsive" th:unless="${#lists.isEmpty(currentDeployments)}">
+            <table class="table align-middle mb-0">
+                <thead><tr><th>Context</th><th>File</th><th>Release</th><th>Deployed</th><th>Deployment</th></tr></thead>
+                <tbody>
+                <tr th:each="t : ${currentDeployments}">
+                    <td><code th:text="${t.contextPath}"></code></td>
+                    <td class="small" th:text="${t.targetFilename}"></td>
+                    <td><a th:if="${t.run.release != null}" th:href="@{/releases/{id}(id=${t.run.release.id})}" th:text="${t.run.application.name + ' ' + t.run.release.versionLabel}"></a>
+                        <span th:if="${t.run.release == null}" th:text="${t.run.application.name} + ': server backup (restored)'"></span>
+                        <span th:if="${t.run.rollback}" class="badge text-bg-dark ms-1">Rollback</span></td>
+                    <td class="small" th:text="${@time.format(t.finishedAt)}"></td>
+                    <td><a class="small" th:href="@{/deployments/{id}(id=${t.run.id})}" th:text="'#' + ${t.run.id}"></a></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/connectivity.js}"></script>
+</body>
+</html>

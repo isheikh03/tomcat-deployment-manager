@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-vertical-style="overlay" data-theme-mode="light" data-header-styles="light" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body class="auth-page">
+<div class="container">
+    <div class="row justify-content-center align-items-center authentication authentication-basic h-100">
+        <div class="col-xxl-6 col-xl-7 col-lg-8 col-md-10 col-12">
+            <div class="my-4 d-flex justify-content-center">
+                <span class="auth-brand-mark">
+                    <img th:src="@{/assets/images/brand/toggle-white.svg}" alt="">
+                    <span><span class="name">Tomcat Deployment Manager</span><span class="tag">First-time setup</span></span>
+                </span>
+            </div>
+            <div class="card custom-card">
+                <div class="card-body p-5">
+                    <p class="h5 fw-semibold mb-2 text-center">Create the first administrator</p>
+                    <p class="mb-4 text-muted fw-normal text-center small">No account exists yet. To prove you operate this server, enter the one-time
+                        <strong>setup token</strong> printed in the application log at startup (search the log for <code>setup token</code>).
+                        This page closes once the administrator exists.</p>
+
+                    <div class="alert alert-danger small" th:if="${error}" th:text="${error}" role="alert"></div>
+
+                    <form th:action="@{/setup}" method="post" novalidate autocomplete="off">
+                        <div class="row gy-3">
+                            <div class="col-12">
+                                <label class="form-label text-default" for="token">Setup token</label>
+                                <input class="form-control form-control-lg font-monospace" id="token" name="token" required spellcheck="false" autocomplete="off">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label text-default" for="username">Administrator username</label>
+                                <input class="form-control form-control-lg" id="username" name="username" th:value="${username}" required autocapitalize="none" spellcheck="false"
+                                       pattern="[a-z0-9][a-z0-9._\-]{1,59}" placeholder="e.g. jdoe">
+                                <div class="form-text">Lowercase letters, digits, dot, dash or underscore.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-default" for="password">Password</label>
+                                <input class="form-control form-control-lg" type="password" id="password" name="password" autocomplete="new-password" required minlength="12">
+                                <div class="form-text">At least 12 characters; must not contain the username.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-default" for="passwordConfirmation">Repeat password</label>
+                                <input class="form-control form-control-lg" type="password" id="passwordConfirmation" name="passwordConfirmation" autocomplete="new-password" required>
+                            </div>
+                            <div class="col-12 d-grid mt-2">
+                                <button class="btn btn-lg btn-primary btn-wave" type="submit">Create administrator</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<th:block th:replace="~{fragments/layout :: authScripts}"></th:block>
+</body>
+</html>
