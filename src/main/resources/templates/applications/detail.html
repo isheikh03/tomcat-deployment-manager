@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('applications')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/applications}">Applications</a></li>
+        <li class="breadcrumb-item active" th:text="${app.name}">app</li>
+    </ol></nav>
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div class="min-w-0">
+            <div class="eyebrow">APPLICATION</div>
+            <h1 class="h3 mb-1" th:text="${app.name}">app</h1>
+            <p class="text-secondary mb-0" th:text="${app.description ?: 'No description'}"></p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-primary" th:href="@{/releases/upload(app=${app.id})}"><i class="bx bx-upload me-1"></i>Upload release</a>
+            <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-secondary" th:href="@{/applications/{id}/edit(id=${app.id})}">Edit</a>
+            <form sec:authorize="hasRole('ADMIN')" method="post" th:action="@{/applications/{id}/delete(id=${app.id})}" th:if="${#lists.isEmpty(releases)}" data-confirm="Delete this application?">
+                <button class="btn btn-outline-danger">Delete</button></form>
+        </div>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-4">
+            <section class="panel h-100">
+                <h2 class="h6 mb-3">Compatibility requirements</h2>
+                <dl class="row small mb-0 detail-list">
+                    <dt class="col-5">Servlet API</dt>
+                    <dd class="col-7" th:text="${app.servletApi.name() == 'DETECT' ? 'Detected from each WAR' : (app.servletApi.name() == 'JAKARTA' ? 'jakarta.servlet (Tomcat 10+)' : 'javax.servlet (Tomcat 9 and older)')}"></dd>
+                    <dt class="col-5">Java</dt>
+                    <dd class="col-7" th:text="${app.minJavaVersion == null and app.maxJavaVersion == null} ? 'Not specified (detected per WAR)' : (${app.minJavaVersion} ?: 'any') + ' to ' + (${app.maxJavaVersion} ?: 'latest')"></dd>
+                    <dt class="col-5">Tomcat</dt>
+                    <dd class="col-7" th:text="${#lists.isEmpty(app.supportedTomcatList)} ? 'Any version' : ${#strings.listJoin(app.supportedTomcatList, ', ')}"></dd>
+                    <dt class="col-5">Other</dt>
+                    <dd class="col-7 text-prewrap" th:text="${app.otherRequirements ?: '—'}"></dd>
+                    <dt class="col-5">Registered</dt>
+                    <dd class="col-7"><span th:text="${@time.format(app.createdAt)}"></span><br><span class="text-secondary" th:text="'by ' + ${app.createdBy}"></span></dd>
+                    <dt class="col-5">Last change</dt>
+                    <dd class="col-7"><span th:text="${@time.format(app.updatedAt)}"></span><br><span class="text-secondary" th:text="'by ' + ${app.updatedBy}"></span></dd>
+                </dl>
+            </section>
+        </div>
+        <div class="col-12 col-xl-8">
+            <section class="panel h-100 p-0">
+                <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+                    <h2 class="h6 mb-0">Releases <span class="text-secondary fw-normal" th:text="'(' + ${#lists.size(releases)} + ')'"></span></h2>
+                    <a class="small" th:href="@{/releases(app=${app.id})}" th:unless="${#lists.isEmpty(releases)}">Open in library →</a>
+                </div>
+                <div class="empty-state" th:if="${#lists.isEmpty(releases)}">
+                    <div class="empty-icon"><i class="bx bx-upload"></i></div>
+                    <h3 class="h6">No releases yet</h3>
+                    <p class="text-secondary small mb-3">Upload a WAR file to create the first release of this application.</p>
+                    <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-primary btn-sm" th:href="@{/releases/upload(app=${app.id})}">Upload release</a>
+                </div>
+                <div class="table-responsive" th:unless="${#lists.isEmpty(releases)}">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead><tr><th>Version</th><th>File</th><th>Size</th><th>Uploaded</th><th>Status</th></tr></thead>
+                        <tbody>
+                        <tr th:each="r : ${releases}" class="row-link" th:attr="data-href=@{/releases/{id}(id=${r.id})}">
+                            <td><a class="fw-semibold" th:href="@{/releases/{id}(id=${r.id})}" th:text="${r.versionLabel}">1.0</a></td>
+                            <td class="small"><span th:text="${r.originalFilename}"></span><div class="text-secondary font-monospace" th:text="${#strings.substring(r.artifact.sha256, 0, 12)} + '…'"></div></td>
+                            <td class="small text-nowrap" th:text="${@time.size(r.artifact.sizeBytes)}"></td>
+                            <td class="small"><span th:text="${@time.format(r.uploadedAt)}"></span><div class="text-secondary" th:text="'by ' + ${r.uploadedBy}"></div></td>
+                            <td><span class="badge" th:classappend="${r.archived ? ' text-bg-secondary' : ' text-bg-success'}" th:text="${r.archived ? 'Archived' : 'Available'}"></span></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

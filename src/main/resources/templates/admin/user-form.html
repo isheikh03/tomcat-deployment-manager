@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('users')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/admin/users}">Users</a></li>
+        <li class="breadcrumb-item active" th:text="${form.new} ? 'Create user' : ${form.username}">user</li>
+    </ol></nav>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+    <div class="row g-3">
+        <div class="col-12 col-xl-7">
+            <section class="panel">
+                <h1 class="h4 mb-3" th:text="${form.new} ? 'Create user' : 'Edit ' + ${form.username}">User</h1>
+                <form th:action="@{/admin/users/save}" th:object="${form}" method="post" novalidate>
+                    <input type="hidden" th:field="*{id}"><input type="hidden" th:field="*{version}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label class="form-label" for="username">Username</label>
+                            <input class="form-control" th:field="*{username}" th:errorclass="is-invalid" th:readonly="${!form.new}" maxlength="60"
+                                   autocapitalize="none" spellcheck="false" placeholder="e.g. jdoe">
+                            <div class="invalid-feedback" th:errors="*{username}"></div>
+                            <div class="form-text" th:if="${form.new}">Lowercase letters, digits, dot, dash, underscore. Cannot be changed later.</div></div>
+                        <div class="col-md-6 mb-3"><label class="form-label" for="displayName">Display name <span class="text-secondary small">(optional)</span></label>
+                            <input class="form-control" th:field="*{displayName}" th:errorclass="is-invalid" maxlength="120"></div>
+                    </div>
+                    <div class="mb-3"><label class="form-label" for="email">Email <span class="text-secondary small">(optional)</span></label>
+                        <input type="email" class="form-control" th:field="*{email}" th:errorclass="is-invalid" maxlength="254">
+                        <div class="invalid-feedback" th:errors="*{email}"></div></div>
+
+                    <fieldset class="mb-3">
+                        <legend class="form-label">Role</legend>
+                        <div class="invalid-feedback d-block" th:if="${#fields.hasErrors('role')}" th:errors="*{role}"></div>
+                        <label class="method-card mb-2 d-flex gap-2 align-items-start" th:each="r : ${roles}">
+                            <input class="form-check-input mt-1" type="radio" th:field="*{role}" th:value="${r}">
+                            <span><strong th:text="${r.label()}"></strong><small class="d-block text-secondary" th:text="${r.description()}"></small></span>
+                        </label>
+                    </fieldset>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch" th:field="*{enabled}">
+                        <label class="form-check-label" th:for="${#ids.prev('enabled')}">Account enabled</label>
+                        <div class="invalid-feedback d-block" th:if="${#fields.hasErrors('enabled')}" th:errors="*{enabled}"></div>
+                        <div class="form-text">A disabled user cannot sign in; open sessions end immediately.</div>
+                    </div>
+
+                    <th:block th:if="${form.new}">
+                        <h2 class="h6 border-bottom pb-2 mt-3">Initial password</h2>
+                        <div class="row">
+                            <div class="col-md-6 mb-3"><label class="form-label" for="password">Temporary password</label>
+                                <input type="password" class="form-control" th:field="*{password}" th:errorclass="is-invalid" autocomplete="new-password">
+                                <div class="invalid-feedback" th:errors="*{password}"></div>
+                                <div class="form-text" th:text="'At least ' + ${minPasswordLength} + ' characters. The user must change it at first sign-in.'"></div></div>
+                            <div class="col-md-6 mb-3"><label class="form-label" for="passwordConfirmation">Repeat password</label>
+                                <input type="password" class="form-control" th:field="*{passwordConfirmation}" th:errorclass="is-invalid" autocomplete="new-password">
+                                <div class="invalid-feedback" th:errors="*{passwordConfirmation}"></div></div>
+                        </div>
+                    </th:block>
+                    <button class="btn btn-primary" type="submit" th:text="${form.new} ? 'Create user' : 'Save changes'">Save</button>
+                    <a class="btn btn-outline-secondary" th:href="@{/admin/users}">Cancel</a>
+                </form>
+            </section>
+        </div>
+        <div class="col-12 col-xl-5" th:if="${account != null}">
+            <section class="panel mb-3">
+                <h2 class="h6">Account status</h2>
+                <dl class="row small mb-0">
+                    <dt class="col-5">Created</dt><dd class="col-7" th:text="${@time.format(account.createdAt)} + (${account.createdBy != null} ? ' by ' + ${account.createdBy} : '')"></dd>
+                    <dt class="col-5">Last sign-in</dt><dd class="col-7" th:text="${@time.format(account.lastLoginAt)}"></dd>
+                    <dt class="col-5">Password</dt><dd class="col-7" th:text="(${account.mustChangePassword} ? 'Temporary · ' : '') + 'changed ' + ${@time.format(account.passwordChangedAt)}"></dd>
+                    <dt class="col-5">Failed attempts</dt><dd class="col-7" th:text="${account.failedAttempts}"></dd>
+                    <dt class="col-5">Locked</dt><dd class="col-7" th:text="${account.locked} ? 'until ' + ${@time.format(account.lockedUntil)} : 'no'"></dd>
+                </dl>
+                <form th:if="${account.locked}" class="mt-2" method="post" th:action="@{/admin/users/{id}/unlock(id=${account.id})}">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Unlock now</button></form>
+            </section>
+            <section class="panel">
+                <h2 class="h6">Set a temporary password</h2>
+                <p class="small text-secondary">For a forgotten password. Open sessions of this user end, and they must choose a new password at the next sign-in.
+                    Pass the temporary password on through a secure channel.</p>
+                <form method="post" th:action="@{/admin/users/{id}/reset-password(id=${account.id})}" data-confirm="Set a temporary password and end this user's sessions?">
+                    <div class="input-group">
+                        <input type="password" class="form-control" name="temporaryPassword" autocomplete="new-password" required
+                               th:attr="minlength=${minPasswordLength}" aria-label="Temporary password" placeholder="Temporary password">
+                        <button class="btn btn-outline-primary" type="submit">Set password</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('deployments')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/deployments}">Deployments</a></li>
+        <li class="breadcrumb-item active">New deployment</li>
+    </ol></nav>
+    <div class="page-intro mb-4">
+        <div class="eyebrow">DEPLOYMENT WIZARD</div>
+        <h1 class="h3 mb-1">New deployment</h1>
+        <p class="text-secondary mb-0">Nothing is changed on any server until you confirm the exact preview in the last step.</p>
+    </div>
+
+    <section class="panel empty-state" th:if="${!hasApplications or !hasInstances}">
+        <div class="empty-icon"><i class="bx bx-rocket"></i></div>
+        <h2 class="h6">Not ready to deploy yet</h2>
+        <p class="text-secondary small mb-3" th:if="${!hasApplications}">Register an application and upload a release first.</p>
+        <p class="text-secondary small mb-3" th:if="${hasApplications and !hasInstances}">Add a Tomcat instance first.</p>
+        <a class="btn btn-primary btn-sm" th:href="${!hasApplications} ? @{/applications} : @{/infrastructure}">Open</a>
+    </section>
+
+    <div class="wizard" id="wizard" th:if="${hasApplications and hasInstances}"
+         th:attr="data-options-url=@{/api/deployments/wizard-options},data-preview-url=@{/api/deployments/preview},data-submit-url=@{/api/deployments},data-request-id=${requestId},data-preselected-release=${preselectedRelease}">
+        <ol class="wizard-steps" aria-label="Steps">
+            <li data-step-nav="1" class="active"><span>1</span>Release</li>
+            <li data-step-nav="2"><span>2</span>Environment</li>
+            <li data-step-nav="3"><span>3</span>Targets</li>
+            <li data-step-nav="4"><span>4</span>Strategy</li>
+            <li data-step-nav="5"><span>5</span>Preview &amp; confirm</li>
+        </ol>
+
+        <div class="wizard-body">
+            <section class="panel wizard-step" data-step="1">
+                <h2 class="h6">1 · Which release?</h2>
+                <div class="row g-3">
+                    <div class="col-md-5"><label class="form-label" for="w-app">Application</label>
+                        <select class="form-select" id="w-app"><option value="">Loading…</option></select></div>
+                    <div class="col-md-7"><span class="form-label d-block">Release</span>
+                        <div class="choice-list" data-releases><p class="small text-secondary mb-0">Choose an application first.</p></div></div>
+                </div>
+            </section>
+
+            <section class="panel wizard-step" data-step="2" hidden>
+                <h2 class="h6">2 · Which environment?</h2>
+                <span sec:authorize="hasRole('ADMIN')" data-is-admin hidden></span>
+                <div data-unassigned></div>
+                <div class="env-cards" data-environments></div>
+            </section>
+
+            <section class="panel wizard-step" data-step="3" hidden>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                    <h2 class="h6 mb-0">3 · Which Tomcat instances?</h2>
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="small text-secondary" for="w-group">Select a server group</label>
+                        <select class="form-select form-select-sm" id="w-group" style="width:auto"><option value="">Individual instances</option></select>
+                    </div>
+                </div>
+                <p class="small text-secondary">Each target can use its own WAR file name; the release itself is never renamed. The file name decides the context path.</p>
+                <div class="table-responsive"><table class="table align-middle mb-0 target-table">
+                    <thead><tr><th style="width:36px"><input type="checkbox" class="form-check-input" data-select-all aria-label="Select all"></th>
+                        <th>Instance</th><th>Method</th><th>Connectivity</th><th style="min-width:200px">Deploy as</th><th>Context</th></tr></thead>
+                    <tbody data-targets></tbody>
+                </table></div>
+            </section>
+
+            <section class="panel wizard-step" data-step="4" hidden>
+                <h2 class="h6">4 · How should it roll out?</h2>
+                <div class="choice-row strategy-row">
+                    <label class="choice"><input type="radio" name="strategy" value="SEQUENTIAL" checked>
+                        <span><strong>One at a time (recommended)</strong><small>Each target is verified healthy before the next starts. Required for Production.</small></span></label>
+                    <label class="choice" data-parallel-choice><input type="radio" name="strategy" value="PARALLEL">
+                        <span><strong>In parallel</strong><small>Up to <select class="form-select form-select-sm d-inline-block w-auto" data-max-parallel></select> targets at a time.</small></span></label>
+                </div>
+                <p class="small text-secondary mt-2 mb-0">In both modes no new target is started after a failure, and cancelling never interrupts a target mid-way.</p>
+            </section>
+
+            <section class="panel wizard-step" data-step="5" hidden>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                    <h2 class="h6 mb-0">5 · Preview and preflight</h2>
+                    <button class="btn btn-outline-primary btn-sm" type="button" data-run-preview>Run preflight again</button>
+                </div>
+                <div data-preview><p class="small text-secondary mb-0">The preflight runs connection tests where needed and inspects each server. This can take a few seconds per target.</p></div>
+                <div class="confirm-box" data-confirm-box hidden>
+                    <div class="form-check mb-2" data-ack-row hidden>
+                        <input class="form-check-input" type="checkbox" id="w-ack" data-ack>
+                        <label class="form-check-label" for="w-ack" data-ack-label>I have reviewed the warnings above and want to continue.</label>
+                    </div>
+                    <div class="mb-2" data-confirm-row hidden>
+                        <label class="form-label small" for="w-confirm">This is a <strong>Production</strong> deployment. Type <code data-confirm-text></code> to confirm.</label>
+                        <input class="form-control" id="w-confirm" autocomplete="off" data-confirm-input style="max-width:240px">
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <button class="btn btn-primary" type="button" data-deploy disabled><i class="bx bx-rocket me-1"></i>Deploy</button>
+                        <span class="small text-secondary" data-deploy-hint></span>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <aside class="panel wizard-summary">
+            <h2 class="h6">Summary</h2>
+            <dl class="small mb-3">
+                <dt>Release</dt><dd data-sum-release>—</dd>
+                <dt>Environment</dt><dd data-sum-env>—</dd>
+                <dt>Targets</dt><dd data-sum-targets>—</dd>
+                <dt>Strategy</dt><dd data-sum-strategy>One at a time</dd>
+            </dl>
+            <button class="btn btn-primary w-100" type="button" data-to-preview disabled>Review preflight →</button>
+            <p class="small text-secondary mt-2 mb-0" data-sum-hint>Choose a release to start.</p>
+        </aside>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/deployment-wizard.js}"></script>
+</body>
+</html>

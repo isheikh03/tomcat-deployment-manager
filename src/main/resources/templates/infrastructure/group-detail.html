@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('infrastructure')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
+        <li class="breadcrumb-item active" th:text="${group.name}">group</li>
+    </ol></nav>
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <div class="eyebrow">SERVER GROUP</div>
+            <h1 class="h3 mb-1" th:text="${group.name}">group</h1>
+            <p class="text-secondary mb-0" th:text="${group.description ?: 'No description.'}"></p>
+        </div>
+        <div class="d-flex gap-2" sec:authorize="hasRole('ADMIN')">
+            <a class="btn btn-outline-secondary" th:href="@{/infrastructure/groups/{id}/edit(id=${group.id})}">Edit</a>
+            <form method="post" th:action="@{/infrastructure/groups/{id}/delete(id=${group.id})}" data-confirm="Delete this server group? Its instances are not deleted.">
+                <button class="btn btn-outline-danger" type="submit">Delete</button></form>
+        </div>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+
+    <section class="panel p-0 mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-4 py-3 border-bottom">
+            <h2 class="h6 mb-0">Members <span class="text-secondary fw-normal" th:text="'(' + ${#lists.size(members)} + ')'"></span></h2>
+            <form sec:authorize="hasRole('ADMIN')" class="d-flex gap-2" method="post" th:action="@{/infrastructure/groups/{id}/members(id=${group.id})}"
+                  th:unless="${#lists.isEmpty(candidates)}">
+                <select class="form-select form-select-sm" name="instanceId" aria-label="Tomcat instance to add" required>
+                    <option value="">Add a Tomcat instance…</option>
+                    <option th:each="c : ${candidates}" th:value="${c.id}"
+                            th:text="${c.name} + ' · ' + ${c.host.name} + (${c.environment != null} ? ' · ' + ${c.environment.label()} : '')"></option>
+                </select>
+                <button class="btn btn-sm btn-primary" type="submit">Add</button>
+            </form>
+        </div>
+        <div class="empty-state py-4" th:if="${#lists.isEmpty(members)}">
+            <p class="small text-secondary mb-0">No members yet. Add Tomcat instances so the group can be chosen as a deployment target.</p>
+        </div>
+        <div class="table-responsive" th:unless="${#lists.isEmpty(members)}">
+            <table class="table align-middle mb-0">
+                <thead><tr><th>Instance</th><th>Host</th><th>Environment</th><th>Deploys as</th><th>Connectivity</th><th></th></tr></thead>
+                <tbody>
+                <tr th:each="i : ${members}">
+                    <td><a class="fw-semibold" th:href="@{/infrastructure/instances/{id}(id=${i.id})}" th:text="${i.name}"></a>
+                        <span th:unless="${i.enabled}" class="badge text-bg-secondary ms-1">Disabled</span></td>
+                    <td class="small" th:text="${i.host.name} + ' · ' + ${i.host.hostname}"></td>
+                    <td><span th:if="${i.environment != null}" class="env-badge" th:classappend="'env-' + ${i.environment.name().toLowerCase()}" th:text="${i.environment.label()}"></span>
+                        <span th:if="${i.environment == null}" class="badge text-bg-warning">Not set</span></td>
+                    <td class="small"><code th:text="${i.deploymentFilename ?: '—'}"></code></td>
+                    <td><span th:replace="~{fragments/layout :: status(${instanceStatuses.getOrDefault(i.id, neverTested)})}"></span></td>
+                    <td class="text-end">
+                        <form sec:authorize="hasRole('ADMIN')" method="post" th:action="@{/infrastructure/groups/{gid}/members/{iid}/remove(gid=${group.id},iid=${i.id})}"
+                              th:attr="data-confirm='Remove ' + ${i.name} + ' from this group?'">
+                            <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button></form></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+    <p class="small text-secondary">Mixing environments in one group is allowed, but a deployment always targets one environment: members of other environments are not offered.</p>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

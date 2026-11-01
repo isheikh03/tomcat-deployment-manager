@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('settings')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <div class="page-intro mb-4">
+        <div class="eyebrow">ADMINISTRATION</div>
+        <h1 class="h3 mb-1">Settings</h1>
+        <p class="text-secondary mb-0">Runtime policies apply immediately and every change is audited. Secrets are never stored or shown here.</p>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-7">
+            <form class="panel" method="post" th:action="@{/admin/settings}">
+                <h2 class="h6 border-bottom pb-2">Policies</h2>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="operatorUpload" name="operatorUpload" value="true"
+                           th:checked="${entries.get('release.operator-upload-enabled').value() == 'true'}">
+                    <label class="form-check-label fw-semibold" for="operatorUpload">Deployment operators may upload releases</label>
+                    <div class="form-text">Administrators can always upload. Off: operators deploy only releases that an administrator uploaded.</div>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="healthMonitoring" name="healthMonitoring" value="true"
+                           th:checked="${entries.get('health.monitoring-enabled').value() == 'true'}">
+                    <label class="form-check-label fw-semibold" for="healthMonitoring">Periodic application health monitoring</label>
+                    <div class="form-text">Off: no scheduled checks (manual checks and post-deployment verification still run).</div>
+                </div>
+                <div class="mb-3" style="max-width: 320px">
+                    <label class="form-label fw-semibold" for="backupRetention">Server backups kept per instance and context</label>
+                    <input type="number" class="form-control" id="backupRetention" name="backupRetention" min="0" max="1000"
+                           th:value="${entries.get('backup.retention-per-context').value()}">
+                    <div class="form-text">0 keeps all. The current rollback point is never removed.</div>
+                </div>
+
+                <h2 class="h6 border-bottom pb-2 mt-4">Notification email</h2>
+                <div class="alert alert-secondary small" th:unless="${mailConfigured}">
+                    No SMTP server is configured. Set <code>SPRING_MAIL_HOST</code> (and port, username, password) in the environment to send emails.
+                    In-application notifications work without email.
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="emailEnabled" name="emailEnabled" value="true"
+                           th:checked="${entries.get('notifications.email-enabled').value() == 'true'}">
+                    <label class="form-check-label fw-semibold" for="emailEnabled">Email notifications</label>
+                </div>
+                <div class="row">
+                    <div class="col-md-8 mb-3"><label class="form-label" for="emailRecipients">Recipients</label>
+                        <input class="form-control" id="emailRecipients" name="emailRecipients" th:value="${entries.get('notifications.email-recipients').value()}"
+                               placeholder="ops@example.com, oncall@example.com">
+                        <div class="form-text">Comma-separated. Email failures never affect deployment or monitoring results.</div></div>
+                    <div class="col-md-4 mb-3"><label class="form-label" for="emailMinLevel">Minimum level</label>
+                        <select class="form-select" id="emailMinLevel" name="emailMinLevel">
+                            <option th:each="l : ${ {'INFO','SUCCESS','WARNING','DANGER'} }" th:value="${l}" th:text="${l}"
+                                    th:selected="${l == entries.get('notifications.email-min-level').value()}"></option>
+                        </select></div>
+                </div>
+                <button class="btn btn-primary" type="submit">Save settings</button>
+            </form>
+            <form class="mt-2" method="post" th:action="@{/admin/settings/test-email}">
+                <button class="btn btn-outline-secondary btn-sm" type="submit" th:disabled="${!mailConfigured}">Send a test email</button>
+            </form>
+
+            <section class="panel mt-3">
+                <h2 class="h6 border-bottom pb-2">Changed settings</h2>
+                <ul class="list-unstyled small mb-0">
+                    <li th:each="e : ${entries.values()}" th:if="${e.overridden()}" class="py-1">
+                        <code th:text="${e.key()}"></code> = <strong th:text="${e.value()}"></strong>
+                        <span class="text-secondary" th:text="'(default ' + ${e.defaultValue()} + '; by ' + ${e.updatedBy()} + ', ' + ${@time.format(e.updatedAt())} + ')'"></span></li>
+                </ul>
+                <p class="small text-secondary mb-0" th:if="${overriddenCount == 0}">All settings use the application configuration defaults.</p>
+            </section>
+        </div>
+
+        <div class="col-12 col-xl-5">
+            <section class="panel mb-3">
+                <h2 class="h6 border-bottom pb-2">Credential encryption</h2>
+                <div th:unless="${encryptionConfigured}" class="alert alert-danger small">APP_ENCRYPTION_KEY is not configured: credentials cannot be saved or used.</div>
+                <th:block th:if="${encryptionConfigured}">
+                    <dl class="row small mb-2">
+                        <dt class="col-6">Algorithm</dt><dd class="col-6">AES-256-GCM, fresh nonce per value</dd>
+                        <dt class="col-6">Current key ID</dt><dd class="col-6"><code th:text="${keyId}"></code></dd>
+                        <dt class="col-6">Previous key ID</dt><dd class="col-6"><code th:if="${previousKeyId != null}" th:text="${previousKeyId}"></code><span th:unless="${previousKeyId != null}">not set</span></dd>
+                        <dt class="col-6">Stored credentials</dt><dd class="col-6" th:text="${rotation.total()}"></dd>
+                        <dt class="col-6">Using the current key</dt><dd class="col-6" th:text="${rotation.current()}"></dd>
+                        <dt class="col-6">Need re-encryption</dt><dd class="col-6" th:classappend="${rotation.previous() > 0} ? ' text-warning-emphasis fw-semibold'" th:text="${rotation.previous()}"></dd>
+                        <dt class="col-6">Unreadable</dt><dd class="col-6" th:classappend="${rotation.unreadable() > 0} ? ' text-danger fw-semibold'" th:text="${rotation.unreadable()}"></dd>
+                    </dl>
+                    <p class="small text-secondary">The key ID is a fingerprint, not the key. To rotate: set the new key as <code>APP_ENCRYPTION_KEY</code> and the old one as
+                        <code>APP_ENCRYPTION_KEY_PREVIOUS</code>, restart, re-encrypt here, then remove the previous key. Losing the key makes stored credentials unrecoverable.</p>
+                    <form method="post" th:action="@{/admin/settings/reencrypt}" data-confirm="Re-encrypt all stored credentials with the current key?">
+                        <button class="btn btn-sm btn-outline-primary" type="submit" th:disabled="${rotation.previous() == 0}">Re-encrypt credentials with the current key</button>
+                    </form>
+                </th:block>
+            </section>
+
+            <section class="panel">
+                <h2 class="h6 border-bottom pb-2">Effective configuration <span class="text-secondary fw-normal small">(environment, read-only)</span></h2>
+                <th:block th:each="g : ${effective}">
+                    <h3 class="small fw-semibold mt-3 mb-1" th:text="${g.key}"></h3>
+                    <dl class="row small mb-0">
+                        <th:block th:each="v : ${g.value}">
+                            <dt class="col-6 fw-normal text-secondary" th:text="${v.key}"></dt><dd class="col-6 text-break" th:text="${v.value}"></dd>
+                        </th:block>
+                    </dl>
+                </th:block>
+            </section>
+        </div>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

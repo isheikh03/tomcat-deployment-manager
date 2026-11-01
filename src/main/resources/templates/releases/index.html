@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('releases')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <div class="eyebrow">RELEASE LIBRARY</div>
+            <h1 class="h3 mb-1">Release library</h1>
+            <p class="text-secondary mb-0">Immutable, checksummed WAR files ready to deploy.</p>
+        </div>
+        <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-primary" th:href="@{/releases/upload(app=${app})}"><i class="bx bx-upload me-1"></i>Upload WAR</a>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+    <div class="alert alert-danger" role="alert" th:if="${storageReport != null and !storageReport.missing().isEmpty()}">
+        <strong>Stored files are missing.</strong> These releases can no longer be deployed until the files are restored from backup:
+        <th:block th:each="r, it : ${missingReleases}"><a class="alert-link" th:href="@{/releases/{id}(id=${r.id})}" th:text="${r.application.name + ' ' + r.versionLabel}"></a><span th:unless="${it.last}">, </span></th:block>.
+    </div>
+    <div class="storage-status small mb-3" sec:authorize="hasRole('ADMIN')" th:if="${storageReport != null}">
+        <span th:if="${storageReport.healthy()}" class="text-success"><i class="bx bxs-circle fs-10 me-1"></i>Storage check passed</span>
+        <span th:unless="${storageReport.healthy()}" class="text-danger"><i class="bx bxs-circle fs-10 me-1"></i>Storage check needs attention</span>
+        <span class="text-secondary" th:text="'· last run ' + ${@time.format(storageReport.ranAt())}"></span>
+        <form class="d-inline" method="post" th:action="@{/releases/storage-check}"><button class="btn btn-link btn-sm p-0 ms-2 align-baseline">Run check now</button></form>
+    </div>
+
+    <form class="filter-bar mb-3" method="get" th:action="@{/releases}" role="search">
+        <select class="form-select filter-app" name="app" aria-label="Application" data-autosubmit>
+            <option value="">All applications</option>
+            <option th:each="a : ${applications}" th:value="${a.id}" th:text="${a.name}" th:selected="${a.id == app}"></option>
+        </select>
+        <input class="form-control" type="search" name="q" th:value="${q}" placeholder="Version, file name, SHA-256 or notes…" aria-label="Search releases">
+        <div class="form-check form-switch text-nowrap mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="archived" name="archived" value="true" th:checked="${archived}" data-autosubmit>
+            <label class="form-check-label small" for="archived">Show archived</label>
+        </div>
+        <button class="btn btn-outline-secondary" type="submit">Search</button>
+        <a class="btn btn-link" th:if="${filtered}" th:href="@{/releases}">Clear filters</a>
+    </form>
+
+    <section class="panel empty-state" th:if="${releases.totalElements == 0}">
+        <div class="empty-icon"><i class="bx bx-package"></i></div>
+        <th:block th:if="${!filtered}">
+            <h2 class="h6">The library is empty</h2>
+            <p class="text-secondary small mb-3" th:if="${#lists.isEmpty(applications)}">Register an application first, then upload its WAR files.</p>
+            <p class="text-secondary small mb-3" th:unless="${#lists.isEmpty(applications)}">Upload a WAR file to create the first release.</p>
+            <a sec:authorize="hasRole('ADMIN')" th:if="${#lists.isEmpty(applications)}" class="btn btn-primary btn-sm" th:href="@{/applications/new}">Register application</a>
+            <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" th:unless="${#lists.isEmpty(applications)}" class="btn btn-primary btn-sm" th:href="@{/releases/upload}">Upload WAR</a>
+        </th:block>
+        <th:block th:if="${filtered}">
+            <h2 class="h6">No releases match these filters</h2>
+            <a class="btn btn-outline-secondary btn-sm mt-2" th:href="@{/releases}">Clear filters</a>
+        </th:block>
+    </section>
+
+    <section class="panel p-0" th:if="${releases.totalElements > 0}">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Application</th><th>Version</th><th>File</th><th>SHA-256</th><th class="text-end">Size</th><th>Uploaded</th><th>Status</th></tr></thead>
+                <tbody>
+                <tr th:each="r : ${releases.content}" class="row-link" th:attr="data-href=@{/releases/{id}(id=${r.id})}">
+                    <td><a th:href="@{/applications/{id}(id=${r.application.id})}" th:text="${r.application.name}">app</a></td>
+                    <td><a class="fw-semibold" th:href="@{/releases/{id}(id=${r.id})}" th:text="${r.versionLabel}">1.0</a>
+                        <span th:unless="${r.hasReleaseNotes()}" class="badge text-bg-light border ms-1" title="No release notes">no notes</span></td>
+                    <td class="small text-break" th:text="${r.originalFilename}"></td>
+                    <td><code class="small" th:text="${#strings.substring(r.artifact.sha256, 0, 12)} + '…'" th:title="${r.artifact.sha256}"></code></td>
+                    <td class="small text-end text-nowrap" th:text="${@time.size(r.artifact.sizeBytes)}"></td>
+                    <td class="small"><span th:text="${@time.format(r.uploadedAt)}"></span><div class="text-secondary" th:text="'by ' + ${r.uploadedBy}"></div></td>
+                    <td>
+                        <span class="badge" th:classappend="${r.archived ? ' text-bg-secondary' : ' text-bg-success'}" th:text="${r.archived ? 'Archived' : 'Available'}"></span>
+                        <span th:if="${r.lastVerificationOk != null and !r.lastVerificationOk}" class="badge text-bg-danger">Integrity failed</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-4 py-3 border-top small">
+            <span class="text-secondary" th:text="'Showing ' + (${releases.number} * ${releases.size} + 1) + '–' + (${releases.number} * ${releases.size} + ${releases.numberOfElements}) + ' of ' + ${releases.totalElements}"></span>
+            <nav aria-label="Release pages" th:if="${releases.totalPages > 1}">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item" th:classappend="${releases.first} ? ' disabled'">
+                        <a class="page-link" th:href="@{/releases(app=${app},q=${q},archived=${archived},page=${releases.number - 1})}">Previous</a></li>
+                    <li class="page-item disabled"><span class="page-link" th:text="${releases.number + 1} + ' / ' + ${releases.totalPages}"></span></li>
+                    <li class="page-item" th:classappend="${releases.last} ? ' disabled'">
+                        <a class="page-link" th:href="@{/releases(app=${app},q=${q},archived=${archived},page=${releases.number + 1})}">Next</a></li>
+                </ul>
+            </nav>
+        </div>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

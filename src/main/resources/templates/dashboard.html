@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('dashboard')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <div class="page-intro d-md-flex d-block align-items-center justify-content-between mb-4">
+        <div>
+            <h1 class="page-title mb-1">Dashboard</h1>
+            <p class="mb-0">Your Tomcat deployment operations at a glance.</p>
+        </div>
+        <div class="d-flex gap-2 mt-3 mt-md-0" sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')">
+            <a class="btn btn-outline-secondary btn-wave" th:href="@{/releases/upload}"><i class="bx bx-upload me-1"></i>Upload WAR</a>
+            <a class="btn btn-primary btn-wave" th:href="@{/deployments/new}"><i class="bx bx-rocket me-1"></i>New deployment</a>
+        </div>
+    </div>
+
+    <!-- Infrastructure -->
+    <div class="row row-cards">
+        <div class="col-xxl-3 col-xl-6 col-md-6 col-12">
+            <a class="card custom-card metric-link" th:href="@{/infrastructure}">
+                <div class="card-body">
+                    <div class="d-flex mb-1">
+                        <div>
+                            <h6 class="mb-2 text-muted">Linux hosts</h6>
+                            <h2 class="mb-0 fw-bold" th:text="${hostsCount}">0</h2>
+                        </div>
+                        <div class="avatar avatar-lg bg-primary-transparent mb-auto ms-auto br-4"><i class="bx bx-server fs-23"></i></div>
+                    </div>
+                    <small class="text-muted"><span th:text="${enabledHostsCount}">0</span> enabled</small>
+                    <div class="progress h-1 mt-1"><div class="progress-bar bg-primary" role="progressbar"
+                         th:style="'width:' + (${hostsCount > 0} ? ${enabledHostsCount * 100 / hostsCount} : 0) + '%'"></div></div>
+                </div>
+            </a>
+        </div>
+        <div class="col-xxl-3 col-xl-6 col-md-6 col-12">
+            <a class="card custom-card metric-link" th:href="@{/infrastructure}">
+                <div class="card-body">
+                    <div class="d-flex mb-1">
+                        <div>
+                            <h6 class="mb-2 text-muted">Tomcat instances</h6>
+                            <h2 class="mb-0 fw-bold" th:text="${instancesCount}">0</h2>
+                        </div>
+                        <div class="avatar avatar-lg bg-secondary-transparent mb-auto ms-auto br-4"><i class="bx bx-layer fs-23"></i></div>
+                    </div>
+                    <small class="text-muted"><span th:text="${enabledInstancesCount}">0</span> enabled</small>
+                    <div class="progress h-1 mt-1"><div class="progress-bar bg-secondary" role="progressbar"
+                         th:style="'width:' + (${instancesCount > 0} ? ${enabledInstancesCount * 100 / instancesCount} : 0) + '%'"></div></div>
+                </div>
+            </a>
+        </div>
+        <div class="col-xxl-3 col-xl-6 col-md-6 col-12">
+            <div class="card custom-card">
+                <div class="card-body">
+                    <div class="d-flex mb-1">
+                        <div>
+                            <h6 class="mb-2 text-muted">Connectivity verified</h6>
+                            <h2 class="mb-0 fw-bold text-success" th:text="${verifiedInstancesCount}">0</h2>
+                        </div>
+                        <div class="avatar avatar-lg bg-success-transparent mb-auto ms-auto br-4"><i class="bx bx-check-shield fs-23"></i></div>
+                    </div>
+                    <small class="text-muted">Successful test in the last 24 h</small>
+                    <div class="progress h-1 mt-1"><div class="progress-bar bg-success" role="progressbar"
+                         th:style="'width:' + (${instancesCount > 0} ? ${verifiedInstancesCount * 100 / instancesCount} : 0) + '%'"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xxl-3 col-xl-6 col-md-6 col-12">
+            <div class="card custom-card">
+                <div class="card-body">
+                    <div class="d-flex mb-1">
+                        <div>
+                            <h6 class="mb-2 text-muted">Connectivity problems</h6>
+                            <h2 class="mb-0 fw-bold" th:classappend="${failedInstancesCount > 0} ? ' text-danger'" th:text="${failedInstancesCount}">0</h2>
+                        </div>
+                        <div class="avatar avatar-lg bg-danger-transparent mb-auto ms-auto br-4"><i class="bx bx-error fs-23"></i></div>
+                    </div>
+                    <small class="text-muted"><span th:text="${unverifiedInstancesCount}">0</span> never tested or stale</small>
+                    <div class="progress h-1 mt-1"><div class="progress-bar bg-danger" role="progressbar"
+                         th:style="'width:' + (${instancesCount > 0} ? ${failedInstancesCount * 100 / instancesCount} : 0) + '%'"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Releases and storage -->
+    <div class="row row-cards">
+        <div class="col-xxl-3 col-xl-6 col-md-6 col-12">
+            <a class="card custom-card metric-link" th:href="@{/applications}">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="avatar avatar-md avatar-rounded bg-primary-transparent"><i class="bx bx-grid-alt fs-18"></i></span>
+                    <div><p class="mb-1 fw-semibold">Applications</p><h3 class="mb-0" th:text="${applicationsCount}">0</h3>
+                        <span class="text-muted fs-12">In the application registry</span></div>
+                </div>
+            </a>
+        </div>
+        <div class="col-xxl-3 col-xl-6 col-md-6 col-12">
+            <a class="card custom-card metric-link" th:href="@{/releases}">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="avatar avatar-md avatar-rounded bg-info-transparent"><i class="bx bx-package fs-18"></i></span>
+                    <div><p class="mb-1 fw-semibold">Available releases</p><h3 class="mb-0" th:text="${releasesCount}">0</h3>
+                        <span class="text-muted fs-12">Not archived</span></div>
+                </div>
+            </a>
+        </div>
+        <div class="col-xxl-3 col-xl-6 col-md-6 col-12">
+            <a class="card custom-card metric-link" th:href="@{/releases}">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="avatar avatar-md avatar-rounded bg-warning-transparent"><i class="bx bx-hdd fs-18"></i></span>
+                    <div><p class="mb-1 fw-semibold">Artifact storage</p><h3 class="mb-0" th:text="${storageUsed}">0 B</h3>
+                        <span class="text-muted fs-12">Unique WAR files (duplicates stored once)</span></div>
+                </div>
+            </a>
+        </div>
+        <div class="col-xxl-3 col-xl-6 col-md-6 col-12">
+            <a class="card custom-card metric-link" th:href="@{/backups}">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <span class="avatar avatar-md avatar-rounded bg-success-transparent"><i class="bx bx-history fs-18"></i></span>
+                    <div><p class="mb-1 fw-semibold">Backup storage</p><h3 class="mb-0" th:text="${backupStorageUsed}">0 B</h3>
+                        <span class="text-muted fs-12" th:text="${serverBackupCount} + ' server backup' + (${serverBackupCount == 1} ? '' : 's') + ' kept for rollback'">0 server backups</span></div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Deployments, health and recovery -->
+    <div class="row">
+        <div class="col-xl-6">
+            <div class="card custom-card">
+                <div class="card-header justify-content-between">
+                    <div class="card-title">Deployments</div>
+                    <a class="fs-13 text-primary" th:href="@{/deployments}">History <i class="ri-arrow-right-s-line align-middle"></i></a>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-4">
+                            <a class="d-block text-reset" th:href="@{/deployments}">
+                                <span class="avatar avatar-md avatar-rounded bg-primary-transparent mb-2"><i class="bx bx-loader-circle fs-18"></i></span>
+                                <h4 class="mb-0" th:classappend="${runningDeployments > 0} ? ' text-primary'" th:text="${runningDeployments}">0</h4>
+                                <span class="text-muted fs-12">Running now</span></a>
+                        </div>
+                        <div class="col-4">
+                            <a class="d-block text-reset" th:href="@{/deployments(state='SUCCEEDED')}">
+                                <span class="avatar avatar-md avatar-rounded bg-success-transparent mb-2"><i class="bx bx-check-circle fs-18"></i></span>
+                                <h4 class="mb-0 text-success" th:text="${succeededDeployments}">0</h4>
+                                <span class="text-muted fs-12">Succeeded</span></a>
+                        </div>
+                        <div class="col-4">
+                            <a class="d-block text-reset" th:href="@{/deployments}">
+                                <span class="avatar avatar-md avatar-rounded bg-danger-transparent mb-2"><i class="bx bx-error-circle fs-18"></i></span>
+                                <h4 class="mb-0" th:classappend="${problemDeployments > 0} ? ' text-danger'" th:text="${problemDeployments}">0</h4>
+                                <span class="text-muted fs-12">Need attention</span></a>
+                        </div>
+                    </div>
+                    <p class="text-muted fs-12 mb-0 mt-3 text-center">Need attention: failed, partially succeeded or unknown outcome.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="card custom-card">
+                <div class="card-header justify-content-between">
+                    <div class="card-title">Health &amp; recovery</div>
+                    <a class="fs-13 text-primary" th:href="@{/health}">Health monitoring <i class="ri-arrow-right-s-line align-middle"></i></a>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 text-center">
+                        <div class="col-4">
+                            <a class="d-block text-reset" th:href="@{/health}">
+                                <span class="avatar avatar-md avatar-rounded bg-danger-transparent mb-2"><i class="bx bx-pulse fs-18"></i></span>
+                                <h4 class="mb-0" th:classappend="${failingHealth > 0} ? ' text-danger' : ' text-success'" th:text="${failingHealth}">0</h4>
+                                <span class="text-muted fs-12">Failing health checks</span></a>
+                        </div>
+                        <div class="col-4">
+                            <a class="d-block text-reset" th:href="@{/deployments}">
+                                <span class="avatar avatar-md avatar-rounded bg-warning-transparent mb-2"><i class="bx bx-undo fs-18"></i></span>
+                                <h4 class="mb-0" th:classappend="${rollbackRequired > 0} ? ' text-danger'" th:text="${rollbackRequired}">0</h4>
+                                <span class="text-muted fs-12">Rollback required</span></a>
+                        </div>
+                        <div class="col-4">
+                            <a class="d-block text-reset" th:href="@{/deployments}">
+                                <span class="avatar avatar-md avatar-rounded bg-info-transparent mb-2"><i class="bx bx-help-circle fs-18"></i></span>
+                                <h4 class="mb-0" th:classappend="${unknownTargets > 0} ? ' text-warning'" th:text="${unknownTargets}">0</h4>
+                                <span class="text-muted fs-12">Unknown outcomes</span></a>
+                        </div>
+                    </div>
+                    <p class="text-muted fs-12 mb-0 mt-3 text-center" th:text="${degradedHealth} + ' degraded (one failed check). Unknown outcomes are inspected and reconciled by an administrator.'"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row" th:unless="${#lists.isEmpty(failingApplications) and #lists.isEmpty(recentRollbacks)}">
+        <div class="col-xl-6">
+            <div class="card custom-card">
+                <div class="card-header"><div class="card-title">Failing health checks</div></div>
+                <div class="card-body">
+                    <p class="text-muted mb-0" th:if="${#lists.isEmpty(failingApplications)}">All monitored applications are healthy.</p>
+                    <ul class="list-unstyled mb-0" th:unless="${#lists.isEmpty(failingApplications)}">
+                        <li class="d-flex align-items-center justify-content-between gap-2 border-bottom py-2" th:each="f : ${failingApplications}">
+                            <a class="fw-semibold" th:href="@{/health/instances/{id}(id=${f.instanceId()})}" th:text="${f.instanceName()}"></a>
+                            <span class="text-truncate text-muted fs-12" th:text="${f.lastDetail()}"></span>
+                            <span class="badge" th:classappend="${f.badgeClass()}" th:text="${f.statusLabel()}"></span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="card custom-card">
+                <div class="card-header"><div class="card-title">Recent rollbacks</div></div>
+                <div class="card-body">
+                    <p class="text-muted mb-0" th:if="${#lists.isEmpty(recentRollbacks)}">No rollbacks yet.</p>
+                    <ul class="list-unstyled mb-0" th:unless="${#lists.isEmpty(recentRollbacks)}">
+                        <li class="d-flex align-items-center justify-content-between gap-2 border-bottom py-2" th:each="r : ${recentRollbacks}">
+                            <a th:href="@{/deployments/{id}(id=${r.id})}" th:text="'#' + ${r.id} + ' ' + ${r.application.name} + ' → ' + ${r.versionLabel}"></a>
+                            <span><span class="badge" th:classappend="${r.state.badgeClass()}" th:text="${r.state.label()}"></span>
+                                <span class="text-muted fs-12 ms-1" th:text="${@time.format(r.requestedAt)}"></span></span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card custom-card">
+                <div class="card-header justify-content-between">
+                    <div class="card-title">Recent deployments</div>
+                    <a class="fs-13 text-primary" th:href="@{/deployments}" th:unless="${#lists.isEmpty(recentDeployments)}">All deployments <i class="ri-arrow-right-s-line align-middle"></i></a>
+                </div>
+                <div class="card-body">
+                    <div class="empty-state py-3" th:if="${#lists.isEmpty(recentDeployments)}">
+                        <div class="empty-icon"><i class="bx bx-rocket"></i></div>
+                        <p class="text-muted mb-2">No deployments yet.</p>
+                        <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-primary btn-sm" th:href="@{/deployments/new}">New deployment</a>
+                    </div>
+                    <ul class="activity-list" th:unless="${#lists.isEmpty(recentDeployments)}">
+                        <li th:each="d : ${recentDeployments}">
+                            <span class="activity-icon"><i class="bx" th:classappend="${d.rollback} ? 'bx-undo' : 'bx-rocket'"></i></span>
+                            <span class="flex-grow-1 min-w-0">
+                                <a class="fw-semibold" th:href="@{/deployments/{id}(id=${d.id})}" th:text="'#' + ${d.id} + (${d.rollback} ? ' Rollback: ' : ' ') + ${d.application.name} + ' ' + ${d.versionLabel}">#1</a>
+                                <span class="env-badge ms-1" th:classappend="'env-' + ${d.environment.name().toLowerCase()}" th:text="${d.environment.label()}"></span>
+                                <small class="d-block text-muted text-truncate" th:text="${d.summary ?: 'In progress'}"></small>
+                            </span>
+                            <span class="badge" th:classappend="${d.state.badgeClass()}" th:text="${d.state.label()}"></span>
+                            <small class="text-muted text-nowrap ms-2" th:text="${@time.format(d.requestedAt)}"></small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-7">
+            <div class="card custom-card">
+                <div class="card-header justify-content-between">
+                    <div class="card-title">Recent releases</div>
+                    <a class="fs-13 text-primary" th:href="@{/releases}" th:unless="${#lists.isEmpty(recentReleases)}">Open library <i class="ri-arrow-right-s-line align-middle"></i></a>
+                </div>
+                <div class="card-body">
+                    <div class="empty-state" th:if="${#lists.isEmpty(recentReleases)}">
+                        <div class="empty-icon"><i class="bx bx-package"></i></div>
+                        <h3 class="h6">No releases yet</h3>
+                        <p class="text-muted mb-3">Register an application, then upload its first WAR.</p>
+                        <a sec:authorize="hasRole('ADMIN')" class="btn btn-primary btn-sm" th:href="@{/applications/new}">Register application</a>
+                    </div>
+                    <ul class="activity-list" th:unless="${#lists.isEmpty(recentReleases)}">
+                        <li th:each="r : ${recentReleases}">
+                            <span class="activity-icon"><i class="bx bx-package"></i></span>
+                            <span class="flex-grow-1 min-w-0">
+                                <a class="fw-semibold" th:href="@{/releases/{id}(id=${r.id})}"><span th:text="${r.application.name}">app</span> <span th:text="${r.versionLabel}">1.0</span></a>
+                                <small class="d-block text-muted text-truncate"><span th:text="${r.originalFilename}"></span> · by <span th:text="${r.uploadedBy}"></span></small>
+                            </span>
+                            <small class="text-muted text-nowrap" th:text="${@time.format(r.uploadedAt)}"></small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-5">
+            <div class="card custom-card">
+                <div class="card-header"><div class="card-title">Quick actions</div></div>
+                <div class="card-body pt-2">
+                    <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="quick-action" th:href="@{/releases/upload}"><span class="action-icon"><i class="bx bx-upload"></i></span><span><strong>Upload WAR</strong><small>Checksum, inspect and add a release to the library</small></span><i class="ri-arrow-right-s-line ms-auto fs-18 text-muted"></i></a>
+                    <a sec:authorize="hasRole('ADMIN')" class="quick-action" th:href="@{/applications/new}"><span class="action-icon"><i class="bx bx-grid-alt"></i></span><span><strong>Register application</strong><small>Name and compatibility requirements</small></span><i class="ri-arrow-right-s-line ms-auto fs-18 text-muted"></i></a>
+                    <a class="quick-action" th:href="@{/infrastructure}"><span class="action-icon"><i class="bx bx-server"></i></span><span><strong>Infrastructure &amp; connectivity</strong><small>Hosts, Tomcat instances and connection tests</small></span><i class="ri-arrow-right-s-line ms-auto fs-18 text-muted"></i></a>
+                    <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="quick-action" th:href="@{/deployments/new}"><span class="action-icon"><i class="bx bx-rocket"></i></span><span><strong>New deployment</strong><small>Preview, preflight and deploy a release</small></span><i class="ri-arrow-right-s-line ms-auto fs-18 text-muted"></i></a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

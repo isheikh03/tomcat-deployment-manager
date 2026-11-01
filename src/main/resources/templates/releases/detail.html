@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('releases')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/releases}">Release library</a></li>
+        <li class="breadcrumb-item"><a th:href="@{/applications/{id}(id=${release.application.id})}" th:text="${release.application.name}">app</a></li>
+        <li class="breadcrumb-item active" th:text="${release.versionLabel}">1.0</li>
+    </ol></nav>
+
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div class="min-w-0">
+            <div class="eyebrow" th:text="'RELEASE R-' + ${release.id}">RELEASE</div>
+            <h1 class="h3 mb-1"><span th:text="${release.application.name}">app</span> <span class="text-primary" th:text="${release.versionLabel}">1.0</span></h1>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="badge" th:classappend="${release.archived ? ' text-bg-secondary' : ' text-bg-success'}" th:text="${release.archived ? 'Archived' : 'Available for deployment'}"></span>
+                <span class="badge text-bg-light border" th:text="${release.originalFilename}"></span>
+                <span class="small text-secondary" th:text="'Uploaded ' + ${@time.format(release.uploadedAt)} + ' by ' + ${release.uploadedBy}"></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-outline-primary" th:href="@{/releases/upload(app=${release.application.id})}"><i class="bx bx-upload me-1"></i>Upload newer version</a>
+            <form sec:authorize="hasRole('ADMIN')" method="post" th:action="@{/releases/{id}/archive(id=${release.id})}" th:unless="${release.archived}"
+                  data-confirm="Archive this release? It will be hidden from the library and cannot be chosen for new deployments.">
+                <button class="btn btn-outline-secondary">Archive</button></form>
+            <form sec:authorize="hasRole('ADMIN')" method="post" th:action="@{/releases/{id}/restore(id=${release.id})}" th:if="${release.archived}">
+                <button class="btn btn-outline-secondary">Restore</button></form>
+            <form sec:authorize="hasRole('ADMIN')" method="post" th:action="@{/releases/{id}/delete(id=${release.id})}"
+                  data-confirm="Permanently delete this release? The stored file is removed when no other release uses it.">
+                <button class="btn btn-outline-danger">Delete</button></form>
+        </div>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+    <div class="alert alert-danger" th:if="${release.lastVerificationOk != null and !release.lastVerificationOk}" role="alert">
+        <strong>Integrity check failed.</strong> The stored file no longer matches its recorded SHA-256. Do not deploy this release; investigate the storage directory.
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-7">
+            <section class="panel mb-3">
+                <h2 class="h6 mb-3">Artifact</h2>
+                <dl class="row small mb-0 detail-list">
+                    <dt class="col-sm-4">SHA-256</dt>
+                    <dd class="col-sm-8"><div class="sha-box"><code th:text="${artifact.sha256}" data-sha>sha</code>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-copy="[data-sha]" title="Copy SHA-256">Copy</button></div></dd>
+                    <dt class="col-sm-4">Size</dt><dd class="col-sm-8" th:text="${size} + ' (' + ${#numbers.formatInteger(artifact.sizeBytes, 1, 'COMMA')} + ' bytes)'"></dd>
+                    <dt class="col-sm-4">Original file name</dt><dd class="col-sm-8"><code th:text="${release.originalFilename}"></code></dd>
+                    <dt class="col-sm-4">Archive entries</dt><dd class="col-sm-8" th:text="${artifact.entryCount}"></dd>
+                    <dt class="col-sm-4">Integrity</dt>
+                    <dd class="col-sm-8">
+                        <div class="d-flex flex-wrap align-items-center gap-2" data-verify-box>
+                            <span data-verify-status>
+                                <span th:if="${release.lastVerifiedAt == null}" class="badge text-bg-light border">Not verified since upload</span>
+                                <span th:if="${release.lastVerifiedAt != null}" class="badge" th:classappend="${release.lastVerificationOk ? ' text-bg-success' : ' text-bg-danger'}"
+                                      th:text="(${release.lastVerificationOk} ? 'Verified ' : 'Failed ') + ${@time.format(release.lastVerifiedAt)}"></span>
+                            </span>
+                            <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" type="button" class="btn btn-sm btn-outline-primary"
+                                    th:attr="data-verify-url=@{/api/releases/{id}/verify(id=${release.id})}">Verify now</button>
+                        </div>
+                        <div class="form-text">Recomputes the SHA-256 of the stored file. This also runs automatically before every deployment.</div>
+                    </dd>
+                    <th:block th:unless="${#lists.isEmpty(sharing)}">
+                        <dt class="col-sm-4">Shared file</dt>
+                        <dd class="col-sm-8">The same bytes are also release
+                            <th:block th:each="s, it : ${sharing}"><a th:href="@{/releases/{id}(id=${s.id})}" th:text="${s.application.name + ' ' + s.versionLabel}"></a><span th:unless="${it.last}">, </span></th:block>.
+                            Stored once.</dd>
+                    </th:block>
+                </dl>
+            </section>
+
+            <section class="panel mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h2 class="h6 mb-0">Release notes</h2>
+                    <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" type="button" class="btn btn-sm btn-link" data-toggle-edit>Edit details</button>
+                </div>
+                <div data-view>
+                    <div class="release-notes" th:if="${release.hasReleaseNotes()}" th:text="${release.releaseNotes}"></div>
+                    <div class="alert alert-warning small mb-0" th:unless="${release.hasReleaseNotes()}">No release notes yet. They are required before this release can be deployed to Production.</div>
+                </div>
+                <form sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" method="post" th:action="@{/releases/{id}/metadata(id=${release.id})}" data-edit hidden>
+                    <input type="hidden" name="version" th:value="${release.version}">
+                    <div class="mb-3"><label class="form-label" for="versionLabel">Version</label>
+                        <input class="form-control" id="versionLabel" name="versionLabel" th:value="${release.versionLabel}" required maxlength="100"></div>
+                    <div class="mb-3"><label class="form-label" for="releaseNotes">Release notes</label>
+                        <textarea class="form-control" id="releaseNotes" name="releaseNotes" rows="6" maxlength="20000" th:text="${release.releaseNotes}"></textarea></div>
+                    <p class="small text-secondary">Only the label and notes change. The WAR file and its checksum are immutable.</p>
+                    <button class="btn btn-primary btn-sm">Save details</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-toggle-edit>Cancel</button>
+                </form>
+            </section>
+
+            <section class="panel p-0">
+                <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+                    <h2 class="h6 mb-0">Deployment history</h2>
+                    <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" th:unless="${release.archived}" class="btn btn-sm btn-primary"
+                       th:href="@{/deployments/new(release=${release.id})}"><i class="bx bx-rocket me-1"></i>Deploy this release</a>
+                </div>
+                <div class="text-secondary small px-4 py-3" th:if="${#lists.isEmpty(deployments)}">Not deployed yet.</div>
+                <div class="table-responsive" th:unless="${#lists.isEmpty(deployments)}">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead><tr><th>#</th><th>Environment</th><th>Outcome</th><th>Requested</th></tr></thead>
+                        <tbody>
+                        <tr th:each="d : ${deployments}" class="row-link" th:attr="data-href=@{/deployments/{id}(id=${d.id})}">
+                            <td><a th:href="@{/deployments/{id}(id=${d.id})}" th:text="'#' + ${d.id}"></a></td>
+                            <td><span class="env-badge" th:classappend="'env-' + ${d.environment.name().toLowerCase()}" th:text="${d.environment.label()}"></span></td>
+                            <td><span class="badge" th:classappend="${d.state.badgeClass()}" th:text="${d.state.label()}"></span>
+                                <div class="small text-secondary" th:text="${d.summary}"></div></td>
+                            <td class="small"><span th:text="${@time.format(d.requestedAt)}"></span><div class="text-secondary" th:text="'by ' + ${d.requestedBy}"></div></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-12 col-xl-5">
+            <section class="panel mb-3">
+                <h2 class="h6 mb-3">Detected contents</h2>
+                <dl class="row small mb-2 detail-list">
+                    <dt class="col-5">Compiled for</dt>
+                    <dd class="col-7" th:text="${artifact.detectedJavaVersion != null} ? 'Java ' + ${artifact.detectedJavaVersion} : 'Unknown'"></dd>
+                    <dt class="col-5">Servlet API</dt>
+                    <dd class="col-7" th:text="${artifact.detectedServletApi.name() == 'JAKARTA'} ? 'jakarta.servlet' : (${artifact.detectedServletApi.name() == 'JAVAX'} ? 'javax.servlet' : 'Unknown')"></dd>
+                    <dt class="col-5">web.xml</dt><dd class="col-7" th:text="${artifact.hasWebXml ? 'Present' : 'Not present'}"></dd>
+                </dl>
+                <p class="small text-secondary mb-0" th:text="${artifact.inspectionNotes}"></p>
+            </section>
+
+            <section class="panel">
+                <h2 class="h6 mb-1">Compatibility with your Tomcat instances</h2>
+                <p class="small text-secondary">
+                    Requires
+                    <strong th:text="${requirements.servletApi().name() == 'JAKARTA'} ? 'jakarta.servlet' : (${requirements.servletApi().name() == 'JAVAX'} ? 'javax.servlet' : 'unknown Servlet API')"></strong>,
+                    <strong th:text="${requirements.minJava() != null} ? 'Java ' + ${requirements.minJava()} + (${requirements.maxJava() != null} ? '–' + ${requirements.maxJava()} : '+') : 'unknown Java'"></strong><th:block th:unless="${#lists.isEmpty(requirements.tomcatLines())}">,
+                    <strong th:text="'Tomcat ' + ${#strings.listJoin(requirements.tomcatLines(), ', ')}"></strong></th:block>.
+                    <a th:href="@{/applications/{id}(id=${release.application.id})}">Requirements</a>
+                </p>
+                <div class="empty-state py-3" th:if="${#lists.isEmpty(compatibility)}">
+                    <p class="small text-secondary mb-0">No Tomcat instances configured yet.</p>
+                </div>
+                <ul class="compat-list" th:unless="${#lists.isEmpty(compatibility)}">
+                    <li th:each="row : ${compatibility}">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <span class="min-w-0"><a class="fw-semibold" th:href="@{/infrastructure/instances/{id}(id=${row.instance().id})}" th:text="${row.instance().name}">instance</a>
+                                <small class="d-block text-secondary" th:text="${row.instance().host.name} + ' · ' + (${row.instance().tomcatVersion != null} ? 'Tomcat ' + ${row.instance().tomcatVersion} : 'Tomcat ?') + ' · ' + (${row.instance().javaVersion != null} ? 'Java ' + ${row.instance().javaVersion} : 'Java ?')"></small></span>
+                            <span class="badge" th:classappend="${row.result().badgeClass()}" th:text="${row.result().label()}"></span>
+                        </div>
+                        <ul class="compat-reasons" th:unless="${row.result().status().name() == 'COMPATIBLE'}">
+                            <li th:each="reason : ${row.result().reasons()}" th:text="${reason}"></li>
+                        </ul>
+                    </li>
+                </ul>
+                <p class="small text-secondary mt-2 mb-0">Unknown means information is missing. Set the Tomcat and Java version on the instance (or run a Tomcat Manager test, which detects them).</p>
+            </section>
+        </div>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/releases.js}"></script>
+</body>
+</html>

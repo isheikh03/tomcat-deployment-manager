@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('infrastructure')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <div class="eyebrow">INFRASTRUCTURE</div>
+            <h1 class="h3 mb-1">Infrastructure management</h1>
+            <p class="text-secondary mb-0">Linux hosts, Tomcat instances, server groups and their verified connectivity.</p>
+        </div>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+    <div class="alert alert-warning small" role="alert" th:if="${unassignedInstances > 0}">
+        <strong th:text="${unassignedInstances == 1} ? '1 Tomcat instance has no environment' : ${unassignedInstances} + ' Tomcat instances have no environment'">instances without environment</strong>
+        and cannot be selected in the deployment wizard. Open the instance (marked <span class="env-badge env-none">No environment</span> below), choose an environment and save.
+    </div>
+    <div class="method-explainer mb-4">
+        <div><strong><i class="bx bx-transfer-alt me-1"></i>SSH / SFTP: per Linux host</strong><span>One login per server, like a WinSCP session. Instances using this method get WAR files copied into their <code>webapps</code> directory.</span></div>
+        <div><strong><i class="bx bx-globe me-1"></i>Tomcat Manager: per Tomcat instance</strong><span>Tomcat's own HTTP/HTTPS web interface (<code>/manager/text</code>). Instances using this method deploy through it and need no SSH.</span></div>
+    </div>
+    <div th:unless="${encryptionConfigured}" class="alert alert-warning" role="alert">
+        <strong>APP_ENCRYPTION_KEY is not configured.</strong> Credentials cannot be stored or used for connection tests until it is set.
+    </div>
+
+    <section class="panel mb-4 p-0">
+        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+            <h2 class="h6 mb-0">Linux hosts</h2>
+            <a sec:authorize="hasRole('ADMIN')" class="btn btn-primary btn-sm" th:href="@{/infrastructure/hosts/new}">New site (Add host)</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Server name</th><th>Hostname / IP</th><th>SSH account</th><th>Host key</th><th>Connectivity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                <tr th:each="h : ${hosts}">
+                    <td><a class="fw-semibold" th:href="@{/infrastructure/hosts/{id}(id=${h.id})}" th:text="${h.name}">host</a></td>
+                    <td><code th:text="${h.hostname + ':' + h.sshPort}">host:22</code></td>
+                    <td><span th:text="${h.sshUsername ?: '—'}"></span> <span class="small text-secondary" th:text="${h.sshAuthMethod.name() == 'PRIVATE_KEY' ? '(key)' : '(password)'}"></span></td>
+                    <td><span th:if="${h.hasPinnedHostKey()}" class="badge text-bg-light border">Pinned</span><span th:unless="${h.hasPinnedHostKey()}" class="badge text-bg-warning">Not pinned</span></td>
+                    <td><span th:replace="~{fragments/layout :: status(${hostStatuses.getOrDefault(h.id, neverTested)})}"></span></td>
+                    <td><span class="badge" th:classappend="${h.enabled ? ' text-bg-success' : ' text-bg-secondary'}" th:text="${h.enabled ? 'Enabled' : 'Disabled'}"></span></td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-outline-primary btn-sm" th:href="@{/infrastructure/hosts/{id}(id=${h.id})}">Details</a>
+                        <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-secondary btn-sm" th:href="@{/infrastructure/hosts/{id}/edit(id=${h.id})}">Edit</a>
+                        <form sec:authorize="hasRole('ADMIN')" class="d-inline" method="post" th:action="@{/infrastructure/hosts/{id}/delete(id=${h.id})}" data-confirm="Delete this host?">
+                            <button class="btn btn-outline-danger btn-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(hosts)}"><td colspan="7" class="text-center text-secondary py-4">No hosts configured yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel mb-4 p-0">
+        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+            <h2 class="h6 mb-0">Tomcat instances</h2>
+            <a sec:authorize="hasRole('ADMIN')" class="btn btn-primary btn-sm" th:href="@{/infrastructure/instances/new}">Add Tomcat instance</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Instance</th><th>Host</th><th>Deployment method</th><th>Groups</th><th>Connectivity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                <tr th:each="i : ${instances}">
+                    <td><a class="fw-semibold" th:href="@{/infrastructure/instances/{id}(id=${i.id})}" th:text="${i.name}">instance</a> <span class="env-badge" th:classappend="${i.environment == null ? 'env-none' : 'env-' + i.environment.name().toLowerCase()}" th:text="${i.environment == null ? 'No environment' : i.environment.label()}"></span><div class="small text-secondary"><span th:text="${i.remoteDeploymentDirectory}"></span><th:block th:if="${i.deploymentFilename != null}">/<strong th:text="${i.deploymentFilename}"></strong> · <span th:text="${i.deploymentContextPath}"></span></th:block></div></td>
+                    <td><a th:href="@{/infrastructure/hosts/{id}(id=${i.host.id})}" th:text="${i.host.name}">host</a><div class="small text-secondary" th:text="${i.host.hostname}"></div></td>
+                    <td th:text="${i.deploymentMethod.name() == 'SSH_SFTP' ? 'SSH / SFTP' : 'Tomcat Manager'}"></td>
+                    <td><span th:each="g : ${i.groups}" class="badge text-bg-light border me-1" th:text="${g.name}"></span><span th:if="${#sets.isEmpty(i.groups)}" class="text-secondary">—</span></td>
+                    <td><span th:replace="~{fragments/layout :: status(${instanceStatuses.getOrDefault(i.id, neverTested)})}"></span></td>
+                    <td><span class="badge" th:classappend="${i.enabled ? ' text-bg-success' : ' text-bg-secondary'}" th:text="${i.enabled ? 'Enabled' : 'Disabled'}"></span></td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-outline-primary btn-sm" th:href="@{/infrastructure/instances/{id}(id=${i.id})}">Details</a>
+                        <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-secondary btn-sm" th:href="@{/infrastructure/instances/{id}/edit(id=${i.id})}">Edit</a>
+                        <form sec:authorize="hasRole('ADMIN')" class="d-inline" method="post" th:action="@{/infrastructure/instances/{id}/delete(id=${i.id})}" data-confirm="Delete this Tomcat instance?">
+                            <button class="btn btn-outline-danger btn-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(instances)}"><td colspan="7" class="text-center text-secondary py-4">No Tomcat instances configured yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel p-0">
+        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+            <h2 class="h6 mb-0">Server groups</h2>
+            <a sec:authorize="hasRole('ADMIN')" class="btn btn-primary btn-sm" th:href="@{/infrastructure/groups/new}">Add group</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Name</th><th>Description</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                <tr th:each="g : ${groups}">
+                    <td><a class="fw-semibold" th:href="@{/infrastructure/groups/{id}(id=${g.id})}" th:text="${g.name}"></a></td>
+                    <td th:text="${g.description ?: '—'}"></td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-outline-primary btn-sm" th:href="@{/infrastructure/groups/{id}(id=${g.id})}">Members</a>
+                        <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-secondary btn-sm" th:href="@{/infrastructure/groups/{id}/edit(id=${g.id})}">Edit</a>
+                        <form sec:authorize="hasRole('ADMIN')" class="d-inline" method="post" th:action="@{/infrastructure/groups/{id}/delete(id=${g.id})}" data-confirm="Delete this group?">
+                            <button class="btn btn-outline-danger btn-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(groups)}"><td colspan="3" class="text-center text-secondary py-4">No server groups created yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

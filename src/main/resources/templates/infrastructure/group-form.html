@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('infrastructure')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
+        <li class="breadcrumb-item active" th:text="${group.id == null ? 'Create server group' : 'Edit server group'}">Server group</li>
+    </ol></nav>
+    <section class="panel" style="max-width: 760px">
+        <h1 class="h4 mb-4" th:text="${group.id == null ? 'Create server group' : 'Edit server group'}">Server group</h1>
+        <form th:action="@{/infrastructure/groups/save}" th:object="${group}" method="post" novalidate>
+            <input type="hidden" th:field="*{id}">
+            <div class="mb-3"><label class="form-label" for="name">Group name</label>
+                <input class="form-control" th:field="*{name}" th:errorclass="is-invalid" required maxlength="100" placeholder="Production - Europe">
+                <div class="invalid-feedback" th:errors="*{name}"></div></div>
+            <div class="mb-4"><label class="form-label" for="description">Description</label>
+                <textarea class="form-control" th:field="*{description}" maxlength="500" rows="3"></textarea></div>
+            <button class="btn btn-primary">Save group</button>
+            <a class="btn btn-outline-secondary" th:href="@{/infrastructure}">Cancel</a>
+        </form>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
