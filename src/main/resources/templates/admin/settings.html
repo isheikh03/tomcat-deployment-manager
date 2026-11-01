@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
 <body>
 <div class="page">
@@ -99,14 +99,29 @@
 
             <section class="panel">
                 <h2 class="h6 border-bottom pb-2">Effective configuration <span class="text-secondary fw-normal small">(environment, read-only)</span></h2>
-                <th:block th:each="g : ${effective}">
-                    <h3 class="small fw-semibold mt-3 mb-1" th:text="${g.key}"></h3>
-                    <dl class="row small mb-0">
-                        <th:block th:each="v : ${g.value}">
-                            <dt class="col-6 fw-normal text-secondary" th:text="${v.key}"></dt><dd class="col-6 text-break" th:text="${v.value}"></dd>
-                        </th:block>
-                    </dl>
-                </th:block>
+                <!-- One section per group; the first is open, opening another closes it -->
+                <div class="accordion config-accordion" id="effective-config">
+                    <div class="accordion-item" th:each="g, it : ${effective}">
+                        <h3 class="accordion-header" th:id="'effective-head-' + ${it.index}">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                    th:classappend="${it.first} ? '' : ' collapsed'"
+                                    th:attr="data-bs-target='#effective-body-' + ${it.index},aria-controls='effective-body-' + ${it.index},aria-expanded=${it.first}">
+                                <span th:text="${g.key}">Group</span>
+                                <span class="badge rounded-pill bg-primary-transparent ms-2" th:text="${#maps.size(g.value)}">0</span>
+                            </button>
+                        </h3>
+                        <div class="accordion-collapse collapse" th:classappend="${it.first} ? ' show'" th:id="'effective-body-' + ${it.index}"
+                             th:attr="aria-labelledby='effective-head-' + ${it.index}" data-bs-parent="#effective-config">
+                            <div class="accordion-body">
+                                <dl class="row small mb-0">
+                                    <th:block th:each="v : ${g.value}">
+                                        <dt class="col-6 fw-normal text-secondary" th:text="${v.key}"></dt><dd class="col-6 text-break" th:text="${v.value}"></dd>
+                                    </th:block>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
         </div>
     </div>

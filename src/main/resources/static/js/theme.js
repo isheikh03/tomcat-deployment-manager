@@ -1,5 +1,5 @@
-// Template behaviours the layout uses: light/dark toggle, full screen, scroll-to-top, button waves,
-// scrollable menu and the coloured page band sized to the page header.
+// Template behaviours the layout uses: light/dark toggle, full screen, scroll-to-top, button waves
+// and the scrollable menu.
 (function () {
     "use strict";
     const html = document.documentElement;
@@ -25,16 +25,6 @@
         }
     }
 
-    // The template paints a fixed-height band behind the page title; grow it so the page header always sits on it.
-    function sizeBand() {
-        const content = document.querySelector(".app-content > .container-fluid");
-        if (!content) return;
-        const intro = content.querySelector(":scope > .page-intro") || content.querySelector(":scope > nav[aria-label='breadcrumb']");
-        if (!intro) return;
-        const bottom = intro.getBoundingClientRect().bottom + window.scrollY;
-        html.style.setProperty("--page-band-height", Math.max(190, Math.round(bottom + 70)) + "px");
-    }
-
     document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll("[data-theme-toggle]").forEach((el) => el.addEventListener("click", toggleTheme));
         document.querySelectorAll("[data-fullscreen]").forEach((el) => el.addEventListener("click", () => toggleFullscreen(el)));
@@ -49,9 +39,5 @@
         const menu = document.getElementById("sidebar-scroll");
         if (menu && window.SimpleBar) new SimpleBar(menu, { autoHide: true });
         document.querySelectorAll("[data-bs-toggle='tooltip']").forEach((el) => new bootstrap.Tooltip(el));
-
-        sizeBand();
-        window.addEventListener("resize", sizeBand);
-        if (document.fonts) document.fonts.ready.then(sizeBand);
     });
 })();

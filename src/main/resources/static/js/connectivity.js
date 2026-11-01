@@ -57,7 +57,7 @@
         container.replaceChildren();
         if (!result) {
             container.append(el("div", { class: "empty-state py-4" },
-                el("div", { class: "empty-icon", text: "⇄" }),
+                el("div", { class: "empty-icon" }, el("i", { class: "bx bx-transfer-alt" })),
                 el("div", { class: "h6", text: "No connection test yet" }),
                 el("p", { class: "small text-secondary mb-0", text: "Run a test to verify this target." })));
             return;
@@ -85,6 +85,11 @@
     function renderHistory(panel, page) {
         const container = panel.querySelector("[data-history]");
         container.replaceChildren();
+        const count = panel.querySelector("[data-history-count]");
+        if (count) {
+            count.hidden = !page || page.totalElements === 0;
+            count.textContent = page ? String(page.totalElements) : "";
+        }
         if (!page || page.content.length === 0) {
             container.append(el("div", { class: "text-secondary", text: "No previous tests." }));
             return;
@@ -93,7 +98,12 @@
             const row = el("tr", { class: "history-row", tabindex: "0" },
                 el("td", { text: formatTime(r.finishedAt) }), el("td", {}, badge(r.outcome)),
                 el("td", { text: r.durationMs + " ms" }), el("td", { text: r.initiatedBy }));
-            const show = () => renderResult(panel, r);
+            const show = () => {
+                renderResult(panel, r);
+                // In the tabbed layout the checks are on the Result tab.
+                const resultTab = panel.querySelector("[data-result-tab]");
+                if (resultTab && window.bootstrap) bootstrap.Tab.getOrCreateInstance(resultTab).show();
+            };
             row.addEventListener("click", show);
             row.addEventListener("keydown", (e) => { if (e.key === "Enter") show(); });
             return row;
@@ -122,6 +132,8 @@
         try {
             const result = await apiFetch(panel.dataset.testUrl, { method: "POST" });
             renderResult(panel, result);
+            const resultTab = panel.querySelector("[data-result-tab]");
+            if (resultTab && window.bootstrap) bootstrap.Tab.getOrCreateInstance(resultTab).show();
             loadHistory(panel, false);
         } catch (e) {
             Swal.fire({ icon: "error", title: "Connection test not run", text: e.message });
