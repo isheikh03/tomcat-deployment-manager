@@ -1,90 +1,140 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="color" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
 <body>
 <div class="page">
 <header th:replace="~{fragments/layout :: header}"></header>
 <aside th:replace="~{fragments/layout :: sidebar('infrastructure')}"></aside>
-<main class="main-content app-content">
+<main class="main-content app-content" th:with="keyAuth=${host.sshAuthMethod.name() == 'PRIVATE_KEY'}">
 <div class="container-fluid">
     <nav aria-label="breadcrumb"><ol class="breadcrumb small">
         <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
         <li class="breadcrumb-item active" th:text="${host.name}">host</li>
     </ol></nav>
     <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-        <div>
-            <div class="eyebrow">LINUX HOST</div>
-            <h1 class="h3 mb-1"><span th:text="${host.name}">host</span>
-                <span class="badge align-middle fs-6" th:classappend="${host.enabled ? ' text-bg-success' : ' text-bg-secondary'}" th:text="${host.enabled ? 'Enabled' : 'Disabled'}"></span></h1>
-            <p class="text-secondary mb-0 font-monospace" th:text="${host.sshUsername != null ? host.sshUsername + '@' : ''} + ${host.hostname} + ':' + ${host.sshPort}"></p>
+        <div class="d-flex align-items-center gap-3 min-w-0">
+            <span class="stat-icon bg-primary-transparent host-avatar"><i class="bx bx-server"></i></span>
+            <div class="min-w-0">
+                <div class="eyebrow mb-1">LINUX HOST</div>
+                <h1 class="h3 mb-1 d-flex flex-wrap align-items-center gap-2"><span th:text="${host.name}">host</span>
+                    <span class="badge fs-12" th:classappend="${host.enabled ? ' text-bg-success' : ' text-bg-secondary'}" th:text="${host.enabled ? 'Enabled' : 'Disabled'}"></span></h1>
+                <p class="text-muted mb-0 font-monospace text-break" th:text="${host.sshUsername != null ? host.sshUsername + '@' : ''} + ${host.hostname} + ':' + ${host.sshPort}"></p>
+            </div>
         </div>
         <div class="d-flex gap-2">
-            <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-secondary" th:href="@{/infrastructure/hosts/{id}/edit(id=${host.id})}">Edit host</a>
+            <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-secondary btn-wave" th:href="@{/infrastructure/hosts/{id}/edit(id=${host.id})}"><i class="bx bx-edit me-1"></i>Edit host</a>
         </div>
     </div>
     <th:block th:replace="~{fragments/layout :: flash}"></th:block>
 
-    <div class="row g-3">
+    <div class="row g-3 mb-3">
+        <!-- Configuration -->
         <div class="col-12 col-xl-5">
-            <section class="panel h-100">
-                <h2 class="h6 mb-3">Configuration</h2>
-                <dl class="row small mb-0 detail-list">
-                    <dt class="col-5">Server name</dt><dd class="col-7" th:text="${host.name}"></dd>
-                    <dt class="col-5">Hostname / IP</dt><dd class="col-7 font-monospace" th:text="${host.hostname}"></dd>
-                    <dt class="col-5">SSH port</dt><dd class="col-7" th:text="${host.sshPort}"></dd>
-                    <dt class="col-5">SSH username</dt><dd class="col-7" th:text="${host.sshUsername ?: '—'}"></dd>
-                    <dt class="col-5">Authentication</dt><dd class="col-7" th:text="${host.sshAuthMethod.name() == 'PRIVATE_KEY' ? 'Private key' : 'Password'}"></dd>
-                    <dt class="col-5">Stored secret</dt>
-                    <dd class="col-7">
-                        <span th:if="${host.sshAuthMethod.name() == 'PRIVATE_KEY'}" th:text="${host.hasSshPrivateKey() ? 'Private key stored' + (host.hasSshKeyPassphrase() ? ' (with passphrase)' : '') : 'None'}"></span>
-                        <span th:if="${host.sshAuthMethod.name() == 'PASSWORD'}" th:text="${host.hasSshPassword() ? 'Password stored' : 'None'}"></span>
-                    </dd>
-                    <dt class="col-5">Pinned host key</dt>
-                    <dd class="col-7"><code class="text-break" th:if="${host.hasPinnedHostKey()}" th:text="${host.sshHostKeyFingerprint}"></code>
-                        <span th:unless="${host.hasPinnedHostKey()}" class="badge text-bg-warning">Not pinned: connections are refused</span></dd>
-                    <dt class="col-5">Connectivity</dt><dd class="col-7"><span th:replace="~{fragments/layout :: status(${hostStatus})}"></span></dd>
-                    <dt class="col-5">Notes</dt><dd class="col-7" th:text="${host.notes ?: '—'}"></dd>
-                    <dt class="col-5">Updated</dt><dd class="col-7" th:text="${@time.format(host.updatedAt)}"></dd>
-                </dl>
-            </section>
-        </div>
-        <div class="col-12 col-xl-7">
-            <section class="panel h-100" data-connectivity
-                     th:attr="data-test-url=@{/api/connectivity-tests/hosts/{id}(id=${host.id})},data-history-url=@{/api/connectivity-tests/hosts/{id}(id=${host.id})},data-trust-url=@{/api/hosts/{id}/host-key/trust(id=${host.id})},data-pinned=${host.hasPinnedHostKey()}">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 class="h6 mb-0">SSH connection test</h2>
-                    <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-primary btn-sm" data-run-test>Test connection</button>
+            <div class="card custom-card h-100 mb-0">
+                <div class="card-header justify-content-between">
+                    <div class="card-title">Configuration</div>
+                    <span class="text-muted fs-12" th:text="'Updated ' + ${@time.format(host.updatedAt)}"></span>
                 </div>
-                <p class="small text-secondary">Connects over SSH, verifies the host key against the pinned fingerprint, authenticates, and opens an SFTP session. Nothing is changed on the server.</p>
-                <div sec:authorize="hasRole('ADMIN')" data-can-trust></div>
-                <div data-result><div class="text-secondary small">Loading latest result…</div></div>
-                <h3 class="h6 mt-4 mb-2">History</h3>
-                <div data-history class="small"></div>
-            </section>
+                <div class="card-body py-2">
+                    <ul class="config-list">
+                        <li><span class="config-icon"><i class="bx bx-server"></i></span><span class="config-label">Server name</span>
+                            <span class="config-value" th:text="${host.name}"></span></li>
+                        <li><span class="config-icon"><i class="bx bx-globe"></i></span><span class="config-label">Hostname / IP</span>
+                            <span class="config-value font-monospace" th:text="${host.hostname}"></span></li>
+                        <li><span class="config-icon"><i class="bx bx-plug"></i></span><span class="config-label">SSH port</span>
+                            <span class="config-value" th:text="${host.sshPort}"></span></li>
+                        <li><span class="config-icon"><i class="bx bx-user"></i></span><span class="config-label">SSH username</span>
+                            <span class="config-value" th:text="${host.sshUsername ?: '—'}"></span></li>
+                        <li><span class="config-icon"><i class="bx" th:classappend="${keyAuth} ? 'bx-key' : 'bx-lock-alt'"></i></span><span class="config-label">Authentication</span>
+                            <span class="config-value">
+                                <span th:text="${keyAuth} ? 'Private key' : 'Password'">Password</span>
+                                <span class="badge ms-1" th:if="${keyAuth}" th:classappend="${host.hasSshPrivateKey()} ? ' text-bg-success' : ' text-bg-warning'"
+                                      th:text="${host.hasSshPrivateKey() ? (host.hasSshKeyPassphrase() ? 'Stored + passphrase' : 'Stored') : 'Not stored'}"></span>
+                                <span class="badge ms-1" th:unless="${keyAuth}" th:classappend="${host.hasSshPassword()} ? ' text-bg-success' : ' text-bg-warning'"
+                                      th:text="${host.hasSshPassword()} ? 'Stored' : 'Not stored'"></span>
+                            </span></li>
+                        <li><span class="config-icon"><i class="bx bx-shield-quarter"></i></span><span class="config-label">Host key</span>
+                            <span class="config-value">
+                                <code class="config-code" th:if="${host.hasPinnedHostKey()}" th:text="${host.sshHostKeyFingerprint}" th:title="${host.sshHostKeyFingerprint}"></code>
+                                <span th:unless="${host.hasPinnedHostKey()}" class="badge text-bg-warning">Not pinned</span>
+                            </span></li>
+                        <li><span class="config-icon"><i class="bx bx-transfer-alt"></i></span><span class="config-label">Connectivity</span>
+                            <span class="config-value">
+                                <span class="text-muted fw-normal fs-12 me-1" th:if="${hostStatus.checkedAt() != null}" th:text="${@time.format(hostStatus.checkedAt())}"></span>
+                                <span th:replace="~{fragments/layout :: status(${hostStatus})}"></span>
+                            </span></li>
+                        <li><span class="config-icon"><i class="bx bx-power-off"></i></span><span class="config-label">Status</span>
+                            <span class="config-value"><span class="badge" th:classappend="${host.enabled ? ' text-bg-success' : ' text-bg-secondary'}"
+                                  th:text="${host.enabled ? 'Enabled for deployments' : 'Disabled'}"></span></span></li>
+                    </ul>
+                    <div class="config-notes" th:if="${host.notes != null and !#strings.isEmpty(host.notes)}">
+                        <div class="config-notes-title"><i class="bx bx-note me-1"></i>Notes</div>
+                        <div class="text-prewrap" th:text="${host.notes}"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connection test: as tall as the configuration card; results and history scroll inside -->
+        <div class="col-12 col-xl-7 fill-col">
+            <div class="card custom-card mb-0 test-card" data-connectivity
+                 th:attr="data-test-url=@{/api/connectivity-tests/hosts/{id}(id=${host.id})},data-history-url=@{/api/connectivity-tests/hosts/{id}(id=${host.id})},data-trust-url=@{/api/hosts/{id}/host-key/trust(id=${host.id})},data-pinned=${host.hasPinnedHostKey()}">
+                <div class="card-header justify-content-between flex-nowrap gap-3">
+                    <div class="min-w-0">
+                        <div class="card-title">SSH connection test</div>
+                        <p class="text-muted fs-12 mb-0 mt-1">Verifies the host key, authenticates and opens an SFTP session. Nothing is changed on the server.</p>
+                    </div>
+                    <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-primary btn-sm btn-wave text-nowrap flex-shrink-0" data-run-test>Test connection</button>
+                </div>
+                <div sec:authorize="hasRole('ADMIN')" data-can-trust hidden></div>
+                <ul class="nav nav-tabs px-3 pt-2 test-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="host-result-tab" data-bs-toggle="tab" data-bs-target="#host-result" data-result-tab
+                                type="button" role="tab" aria-controls="host-result" aria-selected="true"><i class="bx bx-list-check me-1"></i>Result</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="host-history-tab" data-bs-toggle="tab" data-bs-target="#host-history"
+                                type="button" role="tab" aria-controls="host-history" aria-selected="false"><i class="bx bx-history me-1"></i>History
+                            <span class="badge rounded-pill bg-primary-transparent ms-1" data-history-count hidden></span></button>
+                    </li>
+                </ul>
+                <div class="card-body card-scroll tab-content">
+                    <div class="tab-pane fade show active" id="host-result" role="tabpanel" aria-labelledby="host-result-tab" tabindex="0">
+                        <div data-result><div class="text-muted small">Loading latest result…</div></div>
+                    </div>
+                    <div class="tab-pane fade" id="host-history" role="tabpanel" aria-labelledby="host-history-tab" tabindex="0">
+                        <div data-history class="small"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <section class="panel mt-3 p-0">
-        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
-            <h2 class="h6 mb-0">Tomcat instances on this host</h2>
-            <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-primary btn-sm" th:href="@{/infrastructure/instances/new}">Add instance</a>
+    <!-- Instances -->
+    <div class="card custom-card mb-3" id="host-instances">
+        <div class="card-header justify-content-between">
+            <div class="card-title">Tomcat instances on this host
+                <span class="badge rounded-pill bg-primary-transparent ms-1" th:text="${#lists.size(instances)}">0</span></div>
+            <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-primary btn-sm" th:href="@{/infrastructure/instances/new}"><i class="bx bx-plus me-1"></i>Add instance</a>
         </div>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Instance</th><th>Deploys to</th><th>Method</th><th>Connectivity</th><th>Status</th></tr></thead>
-                <tbody>
-                <tr th:each="i : ${instances}">
-                    <td><a class="fw-semibold" th:href="@{/infrastructure/instances/{id}(id=${i.id})}" th:text="${i.name}"></a></td>
-                    <td><code th:text="${i.remoteDeploymentDirectory + (i.deploymentFilename != null ? '/' + i.deploymentFilename : '')}"></code> <span class="small text-secondary" th:if="${i.deploymentFilename != null}" th:text="${'(' + i.deploymentContextPath + ')'}"></span></td>
-                    <td th:text="${i.deploymentMethod.name() == 'SSH_SFTP' ? 'SSH / SFTP' : 'Tomcat Manager'}"></td>
-                    <td><span th:replace="~{fragments/layout :: status(${instanceStatuses.getOrDefault(i.id, neverTested)})}"></span></td>
-                    <td><span class="badge" th:classappend="${i.enabled ? ' text-bg-success' : ' text-bg-secondary'}" th:text="${i.enabled ? 'Enabled' : 'Disabled'}"></span></td>
-                </tr>
-                <tr th:if="${#lists.isEmpty(instances)}"><td colspan="5" class="text-center text-secondary py-4">No Tomcat instances on this host.</td></tr>
-                </tbody>
-            </table>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover text-nowrap align-middle mb-0 card-table">
+                    <thead><tr><th>Instance</th><th>Deploys to</th><th>Method</th><th>Connectivity</th><th>Status</th></tr></thead>
+                    <tbody>
+                    <tr th:each="i : ${instances}">
+                        <td><a class="fw-semibold" th:href="@{/infrastructure/instances/{id}(id=${i.id})}" th:text="${i.name}"></a></td>
+                        <td><code th:text="${i.remoteDeploymentDirectory + (i.deploymentFilename != null ? '/' + i.deploymentFilename : '')}"></code> <span class="small text-muted" th:if="${i.deploymentFilename != null}" th:text="${'(' + i.deploymentContextPath + ')'}"></span></td>
+                        <td th:text="${i.deploymentMethod.name() == 'SSH_SFTP' ? 'SSH / SFTP' : 'Tomcat Manager'}"></td>
+                        <td><span th:replace="~{fragments/layout :: status(${instanceStatuses.getOrDefault(i.id, neverTested)})}"></span></td>
+                        <td><span class="badge" th:classappend="${i.enabled ? ' text-bg-success' : ' text-bg-secondary'}" th:text="${i.enabled ? 'Enabled' : 'Disabled'}"></span></td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(instances)}"><td colspan="5" class="text-center text-muted py-4">No Tomcat instances on this host.</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </section>
+    </div>
 </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
