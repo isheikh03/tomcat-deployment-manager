@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="dark" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
 <body>
 <div class="page">
@@ -9,210 +9,287 @@
 <div class="container-fluid">
     <nav aria-label="breadcrumb"><ol class="breadcrumb small">
         <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
+        <li class="breadcrumb-item" th:if="${form.id != null}"><a th:href="@{/infrastructure/instances/{id}(id=${form.id})}" th:text="${form.name}">instance</a></li>
         <li class="breadcrumb-item active" th:text="${pageTitle}">Add Tomcat instance</li>
     </ol></nav>
-    <section class="panel" style="max-width: 1050px">
-        <h1 class="h4 mb-1" th:text="${pageTitle}">Add Tomcat instance</h1>
-        <p class="text-secondary mb-4">One Tomcat runtime on a Linux host. Choose how WAR files reach it: over the host's SSH/SFTP session, or through Tomcat's own Manager web interface.</p>
+    <div class="page-intro d-flex align-items-center gap-3 mb-4">
+        <span class="stat-icon bg-primary-transparent host-avatar"><i class="bx bx-layer"></i></span>
+        <div class="min-w-0">
+            <div class="eyebrow mb-1">TOMCAT INSTANCE</div>
+            <h1 class="h3 mb-1" th:text="${pageTitle}">Add Tomcat instance</h1>
+            <p class="text-muted mb-0">One Tomcat runtime on a Linux host, and how WAR files reach it.</p>
+        </div>
+    </div>
+    <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" th:if="${#lists.isEmpty(hosts)}">
+        <i class="bx bx-error fs-18"></i><span><strong>No Linux host yet.</strong> Every Tomcat instance runs on a host.</span>
+        <a class="btn btn-sm btn-warning ms-auto" th:href="@{/infrastructure/hosts/new}">Add a Linux host</a>
+    </div>
+
+    <div class="row g-3">
+    <div class="col-12 col-xl-8">
         <form th:action="@{/infrastructure/instances/save}" th:object="${form}" method="post" novalidate
               th:attr="data-draft-manager-url=@{/api/connectivity-tests/drafts/manager}">
             <input type="hidden" th:field="*{id}">
-            <div th:if="${#fields.hasGlobalErrors()}" class="alert alert-danger"><p class="mb-0" th:each="e : ${#fields.globalErrors()}" th:text="${e}"></p></div>
+            <div class="card custom-card mb-3">
+                <div class="card-body p-4">
+                    <div th:if="${#fields.hasGlobalErrors()}" class="alert alert-danger"><p class="mb-0" th:each="e : ${#fields.globalErrors()}" th:text="${e}"></p></div>
 
-            <h2 class="h6 border-bottom pb-2">Instance</h2>
-            <div class="row">
-                <div class="col-md-6 mb-3"><label class="form-label" for="name">Instance name</label>
-                    <input class="form-control" th:field="*{name}" th:errorclass="is-invalid" required maxlength="120" placeholder="tomcat-a">
-                    <div class="invalid-feedback" th:errors="*{name}"></div></div>
-                <div class="col-md-6 mb-3"><label class="form-label" for="hostId">Linux host</label>
-                    <select class="form-select" th:field="*{hostId}" th:errorclass="is-invalid" required data-host-select>
-                        <option value="">Choose host…</option>
-                        <option th:each="h : ${hosts}" th:value="${h.id}" th:text="${h.name + ' — ' + h.hostname}"
-                                th:attr="data-hostname=${h.hostname},data-ssh=${(h.sshUsername ?: '?') + '@' + h.hostname + ':' + h.sshPort},data-pinned=${h.hasPinnedHostKey()}"></option>
-                    </select>
-                    <div class="invalid-feedback" th:errors="*{hostId}"></div>
-                    <div class="form-text" th:if="${#lists.isEmpty(hosts)}">Add a Linux host first.</div></div>
-                <div class="col-12 mb-3">
-                    <span class="form-label d-block">Environment</span>
-                    <div class="env-choices" role="radiogroup" aria-label="Environment">
-                        <label class="env-choice" th:each="e : ${environments}" th:classappend="${e.name() == 'PRODUCTION'} ? ' env-production'">
-                            <input type="radio" th:field="*{environment}" th:value="${e}">
-                            <span th:text="${e.label()}">Development</span>
+                    <!-- Instance -->
+                    <div class="form-section-title mt-0"><i class="bx bx-layer"></i>Instance</div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="name">Instance name</label>
+                            <input class="form-control" th:field="*{name}" th:errorclass="is-invalid" required maxlength="120" placeholder="e.g. tomcat-a" autocomplete="off" autofocus>
+                            <div class="invalid-feedback" th:errors="*{name}"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="hostId">Linux host</label>
+                            <select class="form-select" th:field="*{hostId}" th:errorclass="is-invalid" required data-host-select>
+                                <option value="">Choose host…</option>
+                                <option th:each="h : ${hosts}" th:value="${h.id}" th:text="${h.name + ' — ' + h.hostname}"
+                                        th:attr="data-hostname=${h.hostname},data-ssh=${(h.sshUsername ?: '?') + '@' + h.hostname + ':' + h.sshPort},data-pinned=${h.hasPinnedHostKey()}"></option>
+                            </select>
+                            <div class="invalid-feedback" th:errors="*{hostId}"></div>
+                        </div>
+                        <div class="col-12">
+                            <span class="form-label fw-semibold d-block">Environment</span>
+                            <div class="env-choices" role="radiogroup" aria-label="Environment">
+                                <label class="env-choice" th:each="e : ${environments}" th:classappend="${e.name() == 'PRODUCTION'} ? ' env-production'">
+                                    <input type="radio" class="form-check-input mt-0" th:field="*{environment}" th:value="${e}">
+                                    <span th:text="${e.label()}">Development</span>
+                                </label>
+                            </div>
+                            <div class="text-danger small mt-1" th:errors="*{environment}"></div>
+                            <div class="form-text">Production requires sequential rollout, release notes and typed confirmation.</div>
+                        </div>
+                    </div>
+
+                    <!-- Deployment method -->
+                    <div class="form-section-title"><i class="bx bx-transfer-alt"></i>Deployment method</div>
+                    <div class="method-cards mb-3" role="radiogroup" aria-label="Deployment method">
+                        <label class="method-card">
+                            <input type="radio" class="form-check-input" th:field="*{deploymentMethod}" value="SSH_SFTP" data-method-radio>
+                            <span class="method-title"><i class="bx bx-transfer-alt me-1"></i>SSH / SFTP</span>
+                            <span class="method-text">Copies the WAR into the deployment directory over the host's SSH login. Tomcat picks it up.</span>
+                        </label>
+                        <label class="method-card">
+                            <input type="radio" class="form-check-input" th:field="*{deploymentMethod}" value="TOMCAT_MANAGER" data-method-radio>
+                            <span class="method-title"><i class="bx bx-globe me-1"></i>Tomcat Manager</span>
+                            <span class="method-text">Uploads to Tomcat's Manager API over HTTP/HTTPS. No SSH; needs the <code>manager-script</code> role.</span>
                         </label>
                     </div>
-                    <div class="text-danger small mt-1" th:errors="*{environment}"></div>
-                    <div class="form-text">Deployments are made per environment. Production requires sequential rollout, release notes and typed confirmation.</div>
-                </div>
-                <div class="col-md-6 mb-3"><label class="form-label" for="catalinaBase">CATALINA_BASE</label>
-                    <input class="form-control font-monospace" th:field="*{catalinaBase}" th:errorclass="is-invalid" required placeholder="/opt/tomcat/instance-a" data-dir-part>
-                    <div class="invalid-feedback" th:errors="*{catalinaBase}"></div></div>
-                <div class="col-md-6 mb-3"><label class="form-label" for="appBase">App base</label>
-                    <input class="form-control font-monospace" th:field="*{appBase}" th:errorclass="is-invalid" required placeholder="webapps" data-dir-part>
-                    <div class="invalid-feedback" th:errors="*{appBase}"></div>
-                    <div class="form-text">Relative to CATALINA_BASE, or an absolute path.</div></div>
-                <div class="col-md-6 mb-3"><label class="form-label" for="deploymentFilename">Deployment filename</label>
-                    <input class="form-control font-monospace" th:field="*{deploymentFilename}" th:errorclass="is-invalid" required maxlength="200"
-                           placeholder="appA.war" autocomplete="off" spellcheck="false" data-deploy-filename>
-                    <div class="invalid-feedback" th:errors="*{deploymentFilename}"></div>
-                    <div class="form-text">The uploaded WAR is renamed to this name when deployed here; the stored release is not changed.</div></div>
-                <div class="col-md-6 mb-3"><span class="form-label d-block">Deployed as</span>
-                    <div class="deploy-preview">
-                        <div><span class="text-secondary">File</span> <code data-deploy-path>—</code></div>
-                        <div><span class="text-secondary">Context path</span> <code data-deploy-context>—</code> <span class="small text-secondary" data-deploy-version></span></div>
-                    </div>
-                    <div class="form-text"><code>ROOT.war</code> → <code>/</code>, <code>shop#admin.war</code> → <code>/shop/admin</code>, <code>app##2.0.war</code> → <code>/app</code> version 2.0.</div></div>
-            </div>
 
-            <h2 class="h6 border-bottom pb-2 mt-3">Backup before deployment</h2>
-            <div class="health-toggle mb-3">
-                <div class="form-check form-switch mb-1">
-                    <input class="form-check-input" type="checkbox" role="switch" th:field="*{backupEnabled}" data-backup-switch>
-                    <label class="form-check-label fw-semibold" th:for="${#ids.prev('backupEnabled')}">Back up the current application before replacing it</label>
-                </div>
-                <p class="small text-secondary mb-0" data-backup-on>The deployed WAR (or the previous release from the library) is saved first, so a failed deployment can be rolled back (recommended).</p>
-                <p class="small text-warning-emphasis mb-0" data-backup-off hidden>Backup is off: deployments here start directly with the upload and have no rollback point. The preflight shows a warning that must be acknowledged.</p>
-            </div>
-
-            <h2 class="h6 border-bottom pb-2 mt-3">Application health check</h2>
-            <div class="health-toggle mb-3">
-                <div class="form-check form-switch mb-1">
-                    <input class="form-check-input" type="checkbox" role="switch" th:field="*{healthCheckEnabled}" data-health-switch>
-                    <label class="form-check-label fw-semibold" th:for="${#ids.prev('healthCheckEnabled')}">Verify application health after each deployment</label>
-                </div>
-                <p class="small text-secondary mb-0" data-health-on>A deployment counts as successful only after the health URL answers with HTTP 2xx (recommended).</p>
-                <p class="small text-warning-emphasis mb-0" data-health-off hidden>Health check is off: deployments to this instance finish as soon as the WAR is in place, without confirming the application started. The preflight shows a warning that must be acknowledged.</p>
-            </div>
-            <div class="row" data-health-fields>
-                <div class="col-md-8 mb-3"><label class="form-label" for="healthUrl">Application health URL <span class="text-secondary small" data-health-optional hidden>(optional)</span></label>
-                    <input type="url" class="form-control" th:field="*{healthUrl}" th:errorclass="is-invalid" placeholder="http://tomcat01:8080{context}/health" data-health-url>
-                    <div class="invalid-feedback" th:errors="*{healthUrl}"></div>
-                    <div class="form-text"><code>{context}</code> is replaced with the deployed context path, e.g. <code>/appA</code>.</div></div>
-                <div class="col-md-4 mb-3"><label class="form-label" for="httpPort">Tomcat HTTP port <span class="text-secondary small">(optional)</span></label>
-                    <input type="number" class="form-control" th:field="*{httpPort}" th:errorclass="is-invalid" min="1" max="65535" placeholder="8080">
-                    <div class="invalid-feedback" th:errors="*{httpPort}"></div>
-                    <div class="form-text">For reference only.</div></div>
-                <div class="col-12">
-                    <details class="health-policy mb-3" th:open="${#fields.hasErrors('startupTimeoutSeconds') or #fields.hasErrors('healthConsecutiveSuccesses') or #fields.hasErrors('healthExpectedStatus') or form.startupTimeoutSeconds != null or form.healthConsecutiveSuccesses != null or form.healthExpectedStatus != null or form.healthExpectedText != null}">
-                        <summary class="fw-semibold small">Health policy <span class="text-secondary fw-normal">(optional: when is the application healthy?)</span></summary>
-                        <div class="row mt-2">
-                            <div class="col-sm-6 col-lg-3 mb-3"><label class="form-label" for="healthExpectedStatus">Accepted HTTP status</label>
-                                <input class="form-control" th:field="*{healthExpectedStatus}" th:errorclass="is-invalid" maxlength="60" placeholder="200-299">
-                                <div class="invalid-feedback" th:errors="*{healthExpectedStatus}"></div>
-                                <div class="form-text">Codes or ranges, e.g. <code>200</code>, <code>200,204</code>. Redirects are never followed.</div></div>
-                            <div class="col-sm-6 col-lg-3 mb-3"><label class="form-label" for="healthExpectedText">Response must contain</label>
-                                <input class="form-control" th:field="*{healthExpectedText}" th:errorclass="is-invalid" maxlength="200" placeholder="e.g. UP">
-                                <div class="invalid-feedback" th:errors="*{healthExpectedText}"></div>
-                                <div class="form-text">Optional text in the response body.</div></div>
-                            <div class="col-sm-6 col-lg-3 mb-3"><label class="form-label" for="startupTimeoutSeconds">Startup timeout (s)</label>
-                                <input type="number" class="form-control" th:field="*{startupTimeoutSeconds}" th:errorclass="is-invalid" min="10" max="1800" placeholder="default (120)">
-                                <div class="invalid-feedback" th:errors="*{startupTimeoutSeconds}"></div>
-                                <div class="form-text">How long a deployment waits for the application to become healthy.</div></div>
-                            <div class="col-sm-6 col-lg-3 mb-3"><label class="form-label" for="healthConsecutiveSuccesses">Consecutive successes</label>
-                                <input type="number" class="form-control" th:field="*{healthConsecutiveSuccesses}" th:errorclass="is-invalid" min="1" max="10" placeholder="default (2)">
-                                <div class="invalid-feedback" th:errors="*{healthConsecutiveSuccesses}"></div>
-                                <div class="form-text">Healthy responses in a row before a deployment counts as healthy.</div></div>
+                    <div data-method="SSH_SFTP" class="method-panel">
+                        <div class="d-flex flex-wrap align-items-center gap-2 small">
+                            <i class="bx bx-key text-primary"></i><span class="text-muted">SSH login</span> <code data-ssh-summary>Choose a host</code>
+                            <span class="badge text-bg-warning" data-unpinned hidden>host key not pinned</span>
                         </div>
-                        <p class="small text-secondary mb-0">Empty fields use the application defaults (<code>app.deployment.*</code>).</p>
-                    </details>
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" role="switch" th:field="*{monitoringEnabled}">
-                        <label class="form-check-label" th:for="${#ids.prev('monitoringEnabled')}">Include in periodic health monitoring</label>
-                        <div class="form-text">Checks the health URL on a schedule and records the history. Manual checks are always possible.</div>
+                        <div class="form-text mt-1">Uses the host's credentials and host key. After saving, run <strong>Test connection</strong> on the instance page.</div>
                     </div>
-                </div>
-            </div>
 
-            <h2 class="h6 border-bottom pb-2 mt-3">Runtime <span class="text-secondary small fw-normal">(used for release compatibility checks)</span></h2>
-            <div class="row align-items-end">
-                <div class="col-sm-4 col-md-3 mb-3"><label class="form-label" for="tomcatVersion">Tomcat version</label>
-                    <input class="form-control" th:field="*{tomcatVersion}" th:errorclass="is-invalid" maxlength="40" placeholder="e.g. 10.1.30" data-runtime-tomcat>
-                    <div class="invalid-feedback" th:errors="*{tomcatVersion}"></div></div>
-                <div class="col-sm-4 col-md-3 mb-3"><label class="form-label" for="javaVersion">Java version</label>
-                    <input type="number" class="form-control" th:field="*{javaVersion}" th:errorclass="is-invalid" min="8" max="40" placeholder="e.g. 21" data-runtime-java>
-                    <div class="invalid-feedback" th:errors="*{javaVersion}"></div></div>
-                <div class="col-md-6 mb-3">
-                    <div class="detected-hint" th:if="${detectedRuntime != null}">
-                        <span>Detected by the last Manager test: <strong th:text="'Tomcat ' + ${detectedRuntime.tomcatVersion()} + (${detectedRuntime.javaVersion() != null} ? ', Java ' + ${detectedRuntime.javaVersion()} : '')"></strong></span>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-use-detected
-                                th:attr="data-tomcat=${detectedRuntime.tomcatVersion()},data-java=${detectedRuntime.javaVersion()}">Use these</button>
-                    </div>
-                    <p class="small text-secondary mb-2" th:if="${detectedRuntime == null}">Leave empty if unknown; compatibility is then reported as <em>Unknown</em>, never assumed. A Tomcat Manager connection test detects both.</p>
-                </div>
-            </div>
-
-            <h2 class="h6 border-bottom pb-2 mt-3">Deployment method</h2>
-            <div class="method-cards mb-3" role="radiogroup" aria-label="Deployment method">
-                <label class="method-card">
-                    <input type="radio" th:field="*{deploymentMethod}" value="SSH_SFTP" data-method-radio>
-                    <span class="method-title"><i class="bx bx-transfer-alt me-1"></i>SSH / SFTP</span>
-                    <span class="method-text">Copies the WAR into the deployment directory over the Linux host's SSH session (like WinSCP). Tomcat picks it up automatically.</span>
-                </label>
-                <label class="method-card">
-                    <input type="radio" th:field="*{deploymentMethod}" value="TOMCAT_MANAGER" data-method-radio>
-                    <span class="method-title"><i class="bx bx-globe me-1"></i>Tomcat Manager (HTTP/HTTPS)</span>
-                    <span class="method-text">Uploads the WAR to Tomcat's Manager web API (<code>/manager/text</code>). Needs no SSH; needs a user with the <code>manager-script</code> role.</span>
-                </label>
-            </div>
-
-            <div data-method="SSH_SFTP" class="method-panel">
-                <dl class="row small mb-0">
-                    <dt class="col-sm-3">SSH session</dt><dd class="col-sm-9"><code data-ssh-summary>Choose a host</code> <span class="badge text-bg-warning" data-unpinned hidden>host key not pinned</span></dd>
-                    <dt class="col-sm-3">Deployment directory</dt><dd class="col-sm-9"><code data-dir-preview>—</code></dd>
-                </dl>
-                <p class="small text-secondary mb-0 mt-2">Credentials and host key come from the Linux host. After saving, use <strong>Test connection</strong> on the instance page to verify the directory is writable.</p>
-            </div>
-
-            <div data-method="TOMCAT_MANAGER" class="method-panel">
-                <div class="row">
-                    <div class="col-12 mb-3"><label class="form-label" for="managerUrl">Manager URL</label>
-                        <div class="input-group">
-                            <input class="form-control font-monospace" th:field="*{managerUrl}" th:errorclass="is-invalid" placeholder="https://tomcat01.example.com:8443/manager/text" data-manager-url>
-                            <button class="btn btn-outline-secondary" type="button" data-fill-manager-url title="Use the selected host's address">Use host address</button>
-                            <div class="invalid-feedback" th:errors="*{managerUrl}"></div>
+                    <div data-method="TOMCAT_MANAGER" class="method-panel">
+                        <div class="row g-3">
+                            <div class="col-12"><label class="form-label fw-semibold" for="managerUrl">Manager URL</label>
+                                <div class="input-group has-validation">
+                                    <input class="form-control font-monospace" th:field="*{managerUrl}" th:errorclass="is-invalid" placeholder="https://tomcat01.example.com:8443/manager/text" data-manager-url>
+                                    <button class="btn btn-light border" type="button" data-fill-manager-url title="Use the selected host's address">Use host address</button>
+                                    <div class="invalid-feedback" th:errors="*{managerUrl}"></div>
+                                </div>
+                                <div class="form-text">The text interface (<code>/manager/text</code>), not <code>/manager/html</code>. HTTPS certificates are always verified.</div></div>
+                            <div class="col-md-6"><label class="form-label fw-semibold" for="managerUsername">Manager user name</label>
+                                <input class="form-control" th:field="*{managerUsername}" th:errorclass="is-invalid" maxlength="120" autocomplete="off" placeholder="deployer">
+                                <div class="invalid-feedback" th:errors="*{managerUsername}"></div></div>
+                            <div class="col-md-6"><label class="form-label fw-semibold" for="managerSecret">Manager password
+                                <span th:if="*{managerSecretStored}" class="badge text-bg-success ms-1"><i class="bx bx-check me-1"></i>Saved</span></label>
+                                <div class="input-group has-validation">
+                                    <input type="password" class="form-control" th:field="*{managerSecret}" th:errorclass="is-invalid" autocomplete="new-password"
+                                           th:placeholder="*{managerSecretStored} ? 'Leave blank to keep the saved password' : ''">
+                                    <button class="btn btn-light border" type="button" data-toggle-password="managerSecret" aria-label="Show password">Show</button>
+                                    <div class="invalid-feedback" th:errors="*{managerSecret}"></div>
+                                </div></div>
+                            <div class="col-12" th:if="*{managerSecretStored}"><div class="form-check">
+                                <input type="checkbox" class="form-check-input" th:field="*{clearManagerSecret}">
+                                <label class="form-check-label" for="clearManagerSecret1">Remove the saved Manager password</label></div></div>
+                            <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-draft-manager-test><i class="bx bx-transfer-alt me-1"></i>Test Manager connection</button>
+                                <span class="small text-muted">Read-only (<code>serverinfo</code>, <code>list</code>); nothing is deployed.</span>
+                            </div>
                         </div>
-                        <div class="form-text">The text interface, not <code>/manager/html</code>. HTTPS certificates are always verified.</div></div>
-                    <div class="col-md-6 mb-3"><label class="form-label" for="managerUsername">Manager user name</label>
-                        <input class="form-control" th:field="*{managerUsername}" th:errorclass="is-invalid" maxlength="120" autocomplete="off" placeholder="deployer">
-                        <div class="invalid-feedback" th:errors="*{managerUsername}"></div></div>
-                    <div class="col-md-6 mb-3"><label class="form-label" for="managerSecret">Manager password
-                        <span th:if="*{managerSecretStored}" class="badge text-bg-success ms-1">Saved</span></label>
-                        <input type="password" class="form-control" th:field="*{managerSecret}" th:errorclass="is-invalid" autocomplete="new-password"
-                               th:placeholder="*{managerSecretStored} ? 'Leave blank to keep the saved password' : ''">
-                        <div class="invalid-feedback" th:errors="*{managerSecret}"></div></div>
-                    <div class="col-12 mb-3" th:if="*{managerSecretStored}"><div class="form-check">
-                        <input type="checkbox" class="form-check-input" th:field="*{clearManagerSecret}">
-                        <label class="form-check-label" for="clearManagerSecret1">Remove the saved Manager password</label></div></div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-outline-primary btn-sm" data-draft-manager-test>Test Manager connection</button>
-                    <span class="small text-secondary">Read-only check (<code>serverinfo</code>, <code>list</code>); nothing is deployed.</span>
-                </div>
-                <div class="draft-result" data-draft-result hidden></div>
-            </div>
+                        <div class="draft-result" data-draft-result hidden></div>
+                    </div>
 
-            <h2 class="h6 border-bottom pb-2 mt-4">Limits</h2>
-            <div class="row">
-                <div class="col-md-3 mb-3"><label class="form-label" for="timeoutSeconds">Timeout (s)</label>
-                    <input type="number" class="form-control" th:field="*{timeoutSeconds}" th:errorclass="is-invalid" min="1" max="300">
-                    <div class="invalid-feedback" th:errors="*{timeoutSeconds}"></div></div>
-                <div class="col-md-3 mb-3"><label class="form-label" for="maxRetries">Max retries</label>
-                    <input type="number" class="form-control" th:field="*{maxRetries}" th:errorclass="is-invalid" min="0" max="5">
-                    <div class="invalid-feedback" th:errors="*{maxRetries}"></div></div>
-            </div>
+                    <!-- Location and file name -->
+                    <div class="form-section-title"><i class="bx bx-folder-open"></i>Location &amp; file name</div>
+                    <div class="row g-3">
+                        <div class="col-md-7"><label class="form-label fw-semibold" for="catalinaBase">CATALINA_BASE</label>
+                            <input class="form-control font-monospace" th:field="*{catalinaBase}" th:errorclass="is-invalid" required placeholder="/opt/tomcat/instance-a" data-dir-part>
+                            <div class="invalid-feedback" th:errors="*{catalinaBase}"></div></div>
+                        <div class="col-md-5"><label class="form-label fw-semibold" for="appBase">App base</label>
+                            <input class="form-control font-monospace" th:field="*{appBase}" th:errorclass="is-invalid" required placeholder="webapps" data-dir-part>
+                            <div class="invalid-feedback" th:errors="*{appBase}"></div>
+                            <div class="form-text">Relative to CATALINA_BASE, or an absolute path.</div></div>
+                        <div class="col-md-7"><label class="form-label fw-semibold" for="deploymentFilename">Deployment filename</label>
+                            <input class="form-control font-monospace" th:field="*{deploymentFilename}" th:errorclass="is-invalid" required maxlength="200"
+                                   placeholder="appA.war" autocomplete="off" spellcheck="false" data-deploy-filename>
+                            <div class="invalid-feedback" th:errors="*{deploymentFilename}"></div>
+                            <div class="form-text">Each release is renamed to this when deployed here; the stored release is unchanged.</div></div>
+                        <div class="col-md-5"><span class="form-label fw-semibold d-block">Deployed as</span>
+                            <div class="deploy-preview">
+                                <div><span class="text-muted">Directory</span> <code data-dir-preview>—</code></div>
+                                <div><span class="text-muted">File</span> <code data-deploy-path>—</code></div>
+                                <div><span class="text-muted">Context</span> <code data-deploy-context>—</code> <span class="small text-muted" data-deploy-version></span></div>
+                            </div></div>
+                    </div>
 
-            <h2 class="h6 border-bottom pb-2 mt-3">Server groups</h2>
-            <div th:if="${#lists.isEmpty(groups)}" class="text-secondary small mb-3">No groups yet. You can create groups from the Infrastructure page.</div>
-            <div class="row mb-3">
-                <div class="col-md-4" th:each="g : ${groups}"><div class="form-check">
-                    <input class="form-check-input" type="checkbox" th:field="*{groupIds}" th:value="${g.id}">
-                    <label class="form-check-label" th:for="${#ids.prev('groupIds')}" th:text="${g.name}"></label></div></div>
+                    <!-- Runtime -->
+                    <div class="form-section-title"><i class="bx bx-chip"></i>Runtime <span class="text-muted fw-normal fs-12 ms-1">used for release compatibility checks</span></div>
+                    <div class="row g-3 align-items-start">
+                        <div class="col-sm-6 col-md-3"><label class="form-label fw-semibold" for="tomcatVersion">Tomcat version</label>
+                            <input class="form-control" th:field="*{tomcatVersion}" th:errorclass="is-invalid" maxlength="40" placeholder="e.g. 10.1.30" data-runtime-tomcat>
+                            <div class="invalid-feedback" th:errors="*{tomcatVersion}"></div></div>
+                        <div class="col-sm-6 col-md-3"><label class="form-label fw-semibold" for="javaVersion">Java version</label>
+                            <input type="number" class="form-control" th:field="*{javaVersion}" th:errorclass="is-invalid" min="8" max="40" placeholder="e.g. 21" data-runtime-java>
+                            <div class="invalid-feedback" th:errors="*{javaVersion}"></div></div>
+                        <div class="col-md-6">
+                            <div class="detected-hint mt-md-4 mb-0" th:if="${detectedRuntime != null}">
+                                <span>Detected: <strong th:text="'Tomcat ' + ${detectedRuntime.tomcatVersion()} + (${detectedRuntime.javaVersion() != null} ? ', Java ' + ${detectedRuntime.javaVersion()} : '')"></strong></span>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-use-detected
+                                        th:attr="data-tomcat=${detectedRuntime.tomcatVersion()},data-java=${detectedRuntime.javaVersion()}">Use these</button>
+                            </div>
+                            <p class="form-text mt-md-4 mb-0" th:if="${detectedRuntime == null}">Leave empty if unknown: compatibility is then <em>Unknown</em>, never assumed. A Tomcat Manager test detects both.</p>
+                        </div>
+                    </div>
+
+                    <!-- Safety checks -->
+                    <div class="form-section-title"><i class="bx bx-shield-quarter"></i>Safety checks</div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="health-toggle h-100">
+                                <div class="form-check form-switch mb-1">
+                                    <input class="form-check-input" type="checkbox" role="switch" th:field="*{backupEnabled}" data-backup-switch>
+                                    <label class="form-check-label fw-semibold" th:for="${#ids.prev('backupEnabled')}">Back up before deploying</label>
+                                </div>
+                                <p class="small text-muted mb-0" data-backup-on>The current application is saved first, so a failed deployment can be rolled back. Recommended.</p>
+                                <p class="small text-warning-emphasis mb-0" data-backup-off hidden>Off: no rollback point. The preflight shows a warning that must be acknowledged.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="health-toggle h-100">
+                                <div class="form-check form-switch mb-1">
+                                    <input class="form-check-input" type="checkbox" role="switch" th:field="*{healthCheckEnabled}" data-health-switch>
+                                    <label class="form-check-label fw-semibold" th:for="${#ids.prev('healthCheckEnabled')}">Verify health after deploying</label>
+                                </div>
+                                <p class="small text-muted mb-0" data-health-on>A deployment succeeds only once the health URL answers as expected. Recommended.</p>
+                                <p class="small text-warning-emphasis mb-0" data-health-off hidden>Off: deployments finish without confirming the application started. The preflight warns.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-0" data-health-fields>
+                        <div class="col-md-8"><label class="form-label fw-semibold" for="healthUrl">Application health URL <span class="text-muted fw-normal small" data-health-optional hidden>(optional)</span></label>
+                            <input type="url" class="form-control" th:field="*{healthUrl}" th:errorclass="is-invalid" placeholder="http://tomcat01:8080{context}/health" data-health-url>
+                            <div class="invalid-feedback" th:errors="*{healthUrl}"></div>
+                            <div class="form-text"><code>{context}</code> becomes the deployed context path, e.g. <code>/appA</code>.</div></div>
+                        <div class="col-md-4"><label class="form-label fw-semibold" for="httpPort">HTTP port <span class="text-muted fw-normal small">(optional)</span></label>
+                            <input type="number" class="form-control" th:field="*{httpPort}" th:errorclass="is-invalid" min="1" max="65535" placeholder="8080">
+                            <div class="invalid-feedback" th:errors="*{httpPort}"></div>
+                            <div class="form-text">For reference only.</div></div>
+                        <div class="col-12">
+                            <details class="health-policy" th:open="${#fields.hasErrors('startupTimeoutSeconds') or #fields.hasErrors('healthConsecutiveSuccesses') or #fields.hasErrors('healthExpectedStatus') or form.startupTimeoutSeconds != null or form.healthConsecutiveSuccesses != null or form.healthExpectedStatus != null or form.healthExpectedText != null}">
+                                <summary class="fw-semibold small">Health policy <span class="text-muted fw-normal">(optional: when is the application healthy?)</span></summary>
+                                <div class="row g-3 mt-1">
+                                    <div class="col-sm-6"><label class="form-label" for="healthExpectedStatus">Accepted HTTP status</label>
+                                        <input class="form-control" th:field="*{healthExpectedStatus}" th:errorclass="is-invalid" maxlength="60" placeholder="200-299">
+                                        <div class="invalid-feedback" th:errors="*{healthExpectedStatus}"></div>
+                                        <div class="form-text">e.g. <code>200</code> or <code>200,204</code>. Redirects are never followed.</div></div>
+                                    <div class="col-sm-6"><label class="form-label" for="healthExpectedText">Response must contain</label>
+                                        <input class="form-control" th:field="*{healthExpectedText}" th:errorclass="is-invalid" maxlength="200" placeholder="e.g. UP">
+                                        <div class="invalid-feedback" th:errors="*{healthExpectedText}"></div></div>
+                                    <div class="col-sm-6"><label class="form-label" for="startupTimeoutSeconds">Startup timeout (s)</label>
+                                        <input type="number" class="form-control" th:field="*{startupTimeoutSeconds}" th:errorclass="is-invalid" min="10" max="1800" placeholder="default (120)">
+                                        <div class="invalid-feedback" th:errors="*{startupTimeoutSeconds}"></div>
+                                        <div class="form-text">How long to wait for the application to become healthy.</div></div>
+                                    <div class="col-sm-6"><label class="form-label" for="healthConsecutiveSuccesses">Consecutive successes</label>
+                                        <input type="number" class="form-control" th:field="*{healthConsecutiveSuccesses}" th:errorclass="is-invalid" min="1" max="10" placeholder="default (2)">
+                                        <div class="invalid-feedback" th:errors="*{healthConsecutiveSuccesses}"></div>
+                                        <div class="form-text">Healthy answers in a row before it counts as healthy.</div></div>
+                                </div>
+                                <p class="small text-muted mb-0 mt-2">Empty fields use the application defaults.</p>
+                            </details>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" th:field="*{monitoringEnabled}">
+                                <label class="form-check-label fw-semibold" th:for="${#ids.prev('monitoringEnabled')}">Include in periodic health monitoring</label>
+                            </div>
+                            <div class="form-text">Checks the health URL on a schedule and keeps a history. Manual checks are always possible.</div>
+                        </div>
+                    </div>
+
+                    <!-- Other -->
+                    <div class="form-section-title"><i class="bx bx-slider-alt"></i>Other</div>
+                    <div class="row g-3">
+                        <div class="col-sm-6 col-md-3"><label class="form-label fw-semibold" for="timeoutSeconds">Timeout (s)</label>
+                            <input type="number" class="form-control" th:field="*{timeoutSeconds}" th:errorclass="is-invalid" min="1" max="300">
+                            <div class="invalid-feedback" th:errors="*{timeoutSeconds}"></div></div>
+                        <div class="col-sm-6 col-md-3"><label class="form-label fw-semibold" for="maxRetries">Max retries</label>
+                            <input type="number" class="form-control" th:field="*{maxRetries}" th:errorclass="is-invalid" min="0" max="5">
+                            <div class="invalid-feedback" th:errors="*{maxRetries}"></div></div>
+                        <div class="col-md-6"><span class="form-label fw-semibold d-block">Server groups</span>
+                            <div th:if="${#lists.isEmpty(groups)}" class="form-text mt-0">No groups yet. Create them on the Infrastructure page.</div>
+                            <div class="d-flex flex-wrap gap-3">
+                                <div class="form-check" th:each="g : ${groups}">
+                                    <input class="form-check-input" type="checkbox" th:field="*{groupIds}" th:value="${g.id}">
+                                    <label class="form-check-label" th:for="${#ids.prev('groupIds')}" th:text="${g.name}"></label></div>
+                            </div></div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" class="form-check-input" role="switch" th:field="*{enabled}">
+                                <label class="form-check-label fw-semibold" for="enabled1">Instance enabled</label>
+                            </div>
+                            <div class="form-text">Disabled instances cannot receive deployments.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+                    <span class="text-muted fs-12 d-none d-md-inline">Nothing is saved until you press Save.</span>
+                    <span class="flex-grow-1"></span>
+                    <a class="btn btn-light border" th:href="${form.id == null} ? @{/infrastructure} : @{/infrastructure/instances/{id}(id=${form.id})}">Cancel</a>
+                    <button class="btn btn-primary btn-wave" type="submit" th:disabled="${#lists.isEmpty(hosts)}"><i class="bx bx-save me-1"></i>Save instance</button>
+                </div>
             </div>
-            <div class="form-check mb-4"><input type="checkbox" class="form-check-input" th:field="*{enabled}">
-                <label class="form-check-label" for="enabled1">Instance enabled</label></div>
-            <button class="btn btn-primary" th:disabled="${#lists.isEmpty(hosts)}">Save instance</button>
-            <a class="btn btn-outline-secondary" th:href="${form.id == null} ? @{/infrastructure} : @{/infrastructure/instances/{id}(id=${form.id})}">Cancel</a>
         </form>
-    </section>
+    </div>
+
+    <!-- Notes: how adding an instance works -->
+    <div class="col-12 col-xl-4">
+        <div class="form-aside">
+            <div class="card custom-card mb-3">
+                <div class="card-header"><div class="card-title">How it works</div></div>
+                <div class="card-body">
+                    <ol class="help-steps">
+                        <li><strong>Pick the host and environment</strong><span>The instance runs on a Linux host you added before.</span></li>
+                        <li><strong>Choose how WARs arrive</strong><span>SSH / SFTP uses the host's login; Tomcat Manager uses its own web API and account.</span></li>
+                        <li><strong>Set the location and file name</strong><span>Each release is copied to the deployment directory under this name.</span></li>
+                        <li><strong>Keep the safety checks on</strong><span>Backups make rollback possible; the health check confirms the application started.</span></li>
+                        <li><strong>Save, then test</strong><span>Run <em>Test connection</em> on the instance page before the first deployment.</span></li>
+                    </ol>
+                </div>
+            </div>
+            <div class="card custom-card mb-3">
+                <div class="card-header"><div class="card-title">File name → context path</div></div>
+                <div class="card-body">
+                    <ul class="config-list">
+                        <li><code>ROOT.war</code><span class="config-value"><code>/</code></span></li>
+                        <li><code>shop.war</code><span class="config-value"><code>/shop</code></span></li>
+                        <li><code>shop#admin.war</code><span class="config-value"><code>/shop/admin</code></span></li>
+                        <li><code>app##2.0.war</code><span class="config-value"><code>/app</code> v2.0</span></li>
+                    </ul>
+                    <div class="help-note mt-2"><i class="bx bx-info-circle me-1"></i>Tomcat derives the context path from the file name. The preview in the form shows the result.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
 </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

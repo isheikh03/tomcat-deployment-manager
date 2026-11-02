@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="dark" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
 <body>
 <div class="page">
@@ -11,91 +11,104 @@
         <li class="breadcrumb-item"><a th:href="@{/releases}">Release library</a></li>
         <li class="breadcrumb-item active">Upload WAR</li>
     </ol></nav>
-    <div class="page-intro mb-4">
-        <div class="eyebrow">NEW RELEASE</div>
-        <h1 class="h3 mb-1">Upload WAR</h1>
-        <p class="text-secondary mb-0">The file is checksummed, inspected and stored unchanged. Deployments later rename copies per Tomcat instance.</p>
+    <div class="page-intro d-flex align-items-center gap-3 mb-4">
+        <span class="stat-icon bg-primary-transparent host-avatar"><i class="bx bx-cloud-upload"></i></span>
+        <div class="min-w-0">
+            <div class="eyebrow mb-1">NEW RELEASE</div>
+            <h1 class="h3 mb-1">Upload WAR</h1>
+            <p class="text-muted mb-0">The file is checksummed, inspected and stored unchanged; each deployment renames its own copy.</p>
+        </div>
     </div>
 
-    <section class="panel empty-state" th:if="${#lists.isEmpty(applications)}">
-        <div class="empty-icon"><i class="bx bx-grid-alt"></i></div>
-        <h2 class="h6">Register an application first</h2>
-        <p class="text-secondary small mb-3">Every release belongs to an application, which holds its compatibility requirements.</p>
-        <a sec:authorize="hasRole('ADMIN')" class="btn btn-primary btn-sm" th:href="@{/applications/new}">Register application</a>
-        <p sec:authorize="!hasRole('ADMIN')" class="small text-secondary mb-0">Ask an administrator to register the application.</p>
-    </section>
+    <div class="card custom-card" th:if="${#lists.isEmpty(applications)}">
+        <div class="card-body empty-state">
+            <div class="empty-icon"><i class="bx bx-grid-alt"></i></div>
+            <h2 class="h6">Register an application first</h2>
+            <p class="text-muted small mb-3">Every release belongs to an application, which holds its compatibility requirements.</p>
+            <a sec:authorize="hasRole('ADMIN')" class="btn btn-primary btn-sm" th:href="@{/applications/new}"><i class="bx bx-plus me-1"></i>Register application</a>
+            <p sec:authorize="!hasRole('ADMIN')" class="small text-muted mb-0">Ask an administrator to register the application.</p>
+        </div>
+    </div>
 
     <div class="row g-3" th:unless="${#lists.isEmpty(applications)}">
-        <div class="col-12 col-xl-8">
-            <section class="panel">
-                <form id="upload-form" novalidate th:attr="data-upload-url=@{/api/releases},data-max-bytes=${maxBytes},data-max-size=${maxSize}">
-                    <div class="step"><span class="step-no">1</span><div class="flex-grow-1">
-                        <label class="form-label fw-semibold" for="applicationId">Application</label>
-                        <select class="form-select" id="applicationId" name="applicationId" required>
-                            <option value="">Choose application…</option>
-                            <option th:each="a : ${applications}" th:value="${a.id}" th:text="${a.name}" th:selected="${a.id == app}"
-                                    th:attr="data-name=${a.name}"></option>
-                        </select>
-                        <div class="invalid-feedback">Choose the application this WAR belongs to.</div>
-                        <div class="form-text">Missing? <a sec:authorize="hasRole('ADMIN')" th:href="@{/applications/new}">Register an application</a><span sec:authorize="!hasRole('ADMIN')">Ask an administrator to register it.</span></div>
-                    </div></div>
-
-                    <div class="step"><span class="step-no">2</span><div class="flex-grow-1">
-                        <span class="form-label fw-semibold d-block">WAR file</span>
-                        <label class="drop-zone" for="file" data-drop-zone tabindex="0">
-                            <input type="file" id="file" name="file" accept=".war" class="visually-hidden" required>
-                            <span class="drop-icon"><i class="bx bx-cloud-upload"></i></span>
-                            <span class="drop-title" data-drop-title>Drag a .war file here or <u>browse</u></span>
-                            <span class="drop-hint" th:text="'Maximum ' + ${maxSize} + ' · stored exactly as uploaded'">Maximum 1 GB</span>
-                        </label>
-                        <div class="invalid-feedback d-block" data-file-error></div>
-                    </div></div>
-
-                    <div class="step"><span class="step-no">3</span><div class="flex-grow-1">
-                        <div class="row">
-                            <div class="col-md-5 mb-3">
-                                <label class="form-label fw-semibold" for="versionLabel">Version</label>
-                                <input class="form-control" id="versionLabel" name="versionLabel" required maxlength="100" placeholder="e.g. 2.4.1" autocomplete="off">
-                                <div class="invalid-feedback">Enter a version: letters, digits and . _ + - only.</div>
-                                <div class="form-text" data-version-hint>Suggested from the file name when possible.</div>
-                            </div>
-                            <div class="col-md-7 mb-3">
-                                <label class="form-label fw-semibold" for="releaseNotes">Release notes</label>
-                                <textarea class="form-control" id="releaseNotes" name="releaseNotes" rows="4" maxlength="20000"
-                                          placeholder="What changed, ticket numbers, migration steps…"></textarea>
-                                <div class="form-text">Required before a release can go to Production.</div>
-                            </div>
+    <div class="col-12 col-xl-8">
+        <form id="upload-form" novalidate th:attr="data-upload-url=@{/api/releases},data-max-bytes=${maxBytes},data-max-size=${maxSize}">
+            <div class="card custom-card mb-3">
+                <div class="card-body p-4">
+                    <!-- Release -->
+                    <div class="form-section-title mt-0"><i class="bx bx-package"></i>Release</div>
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label class="form-label fw-semibold" for="applicationId">Application</label>
+                            <select class="form-select" id="applicationId" name="applicationId" required>
+                                <option value="">Choose application…</option>
+                                <option th:each="a : ${applications}" th:value="${a.id}" th:text="${a.name}" th:selected="${a.id == app}"
+                                        th:attr="data-name=${a.name}"></option>
+                            </select>
+                            <div class="invalid-feedback">Choose the application this WAR belongs to.</div>
+                            <div class="form-text">Missing? <a sec:authorize="hasRole('ADMIN')" th:href="@{/applications/new}">Register an application</a><span sec:authorize="!hasRole('ADMIN')">Ask an administrator to register it.</span></div>
                         </div>
-                    </div></div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold" for="versionLabel">Version</label>
+                            <input class="form-control" id="versionLabel" name="versionLabel" required maxlength="100" placeholder="e.g. 2.4.1" autocomplete="off" spellcheck="false">
+                            <div class="invalid-feedback">Enter a version: letters, digits and . _ + - only.</div>
+                            <div class="form-text" data-version-hint>Filled in from the file name when possible.</div>
+                        </div>
+                    </div>
 
-                    <div class="upload-progress" data-progress hidden>
+                    <!-- File -->
+                    <div class="form-section-title"><i class="bx bx-file"></i>WAR file</div>
+                    <label class="drop-zone" for="file" data-drop-zone tabindex="0">
+                        <input type="file" id="file" name="file" accept=".war" class="visually-hidden" required>
+                        <span class="drop-icon"><i class="bx bx-cloud-upload"></i></span>
+                        <span class="drop-title" data-drop-title>Drag a .war file here or <u>browse</u></span>
+                        <span class="drop-hint" th:text="'Maximum ' + ${maxSize} + ' · stored exactly as uploaded'">Maximum 1 GB</span>
+                    </label>
+                    <div class="invalid-feedback d-block" data-file-error></div>
+
+                    <!-- Notes -->
+                    <div class="form-section-title"><i class="bx bx-note"></i>Release notes <span class="text-muted fw-normal fs-12 ms-1">required before a release can go to Production</span></div>
+                    <textarea class="form-control" id="releaseNotes" name="releaseNotes" rows="4" maxlength="20000" aria-label="Release notes"
+                              placeholder="What changed, ticket numbers, migration steps…"></textarea>
+
+                    <!-- Upload status -->
+                    <div class="upload-progress mt-4" data-progress hidden>
                         <div class="d-flex justify-content-between small mb-1"><span data-progress-label>Uploading…</span><span data-progress-percent>0%</span></div>
                         <div class="progress" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100">
                             <div class="progress-bar progress-bar-striped progress-bar-animated" data-progress-bar style="width: 0%"></div>
                         </div>
                     </div>
-                    <div data-upload-error></div>
+                    <div class="mt-3" data-upload-error></div>
+                    <noscript><div class="alert alert-warning mt-3 mb-0">Uploading requires JavaScript.</div></noscript>
+                </div>
+                <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+                    <span class="text-muted fs-12 d-none d-md-inline">Keep this page open until the upload finishes.</span>
+                    <span class="flex-grow-1"></span>
+                    <a class="btn btn-light border" th:href="@{/releases}" data-cancel>Cancel</a>
+                    <button class="btn btn-primary btn-wave" type="submit" data-submit><i class="bx bx-upload me-1"></i>Upload release</button>
+                </div>
+            </div>
+        </form>
+    </div>
 
-                    <div class="d-flex gap-2 justify-content-end mt-3">
-                        <a class="btn btn-outline-secondary" th:href="@{/releases}" data-cancel>Cancel</a>
-                        <button class="btn btn-primary" type="submit" data-submit>Upload release</button>
-                    </div>
-                </form>
-                <noscript><div class="alert alert-warning mt-3">Uploading requires JavaScript.</div></noscript>
-            </section>
+    <!-- Notes -->
+    <div class="col-12 col-xl-4">
+        <div class="form-aside">
+            <div class="card custom-card mb-3">
+                <div class="card-header"><div class="card-title">What happens on upload</div></div>
+                <div class="card-body">
+                    <ol class="help-steps">
+                        <li><strong>Streamed to private storage</strong><span>Never held in memory or served publicly.</span></li>
+                        <li><strong>SHA-256 computed on the server</strong><span>The fingerprint checked before every deployment.</span></li>
+                        <li><strong>Checked as a real WAR</strong><span>A valid ZIP with <code>WEB-INF/</code> and no unsafe paths.</span></li>
+                        <li><strong>Inspected</strong><span>Java class level and javax/jakarta Servlet API are detected for compatibility checks.</span></li>
+                        <li><strong>Stored once, read-only</strong><span>Identical files share storage; the bytes can never change.</span></li>
+                    </ol>
+                    <div class="help-note"><i class="bx bx-info-circle me-1"></i>Each version label can be used once per application.</div>
+                </div>
+            </div>
         </div>
-        <div class="col-12 col-xl-4">
-            <section class="panel">
-                <h2 class="h6 mb-3">What happens on upload</h2>
-                <ol class="checklist">
-                    <li><strong>Streamed to private storage</strong><span>Never held in memory or served publicly.</span></li>
-                    <li><strong>SHA-256 computed on the server</strong><span>The fingerprint used to verify the file before every deployment.</span></li>
-                    <li><strong>Checked as a real WAR</strong><span>Valid ZIP with WEB-INF/, no unsafe paths.</span></li>
-                    <li><strong>Inspected</strong><span>Java class level and javax/jakarta Servlet API are detected for compatibility checks.</span></li>
-                    <li><strong>Stored once, read-only</strong><span>Identical files share storage; the bytes can never be changed.</span></li>
-                </ol>
-            </section>
-        </div>
+    </div>
     </div>
 </div>
 </main>

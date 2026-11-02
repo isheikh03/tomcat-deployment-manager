@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="dark" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
 <body>
 <div class="page">
@@ -12,55 +12,124 @@
         <li class="breadcrumb-item" th:if="${form.id != null}"><a th:href="@{/applications/{id}(id=${form.id})}" th:text="${form.name}">app</a></li>
         <li class="breadcrumb-item active" th:text="${form.id == null ? 'Register' : 'Edit'}">Register</li>
     </ol></nav>
-    <section class="panel" style="max-width: 900px">
-        <h1 class="h4 mb-1" th:text="${pageTitle}">Register application</h1>
-        <p class="text-secondary mb-4">Compatibility requirements are checked against each Tomcat instance before deployment. Leave a field empty when it does not matter; unknown values are reported, never assumed compatible.</p>
+    <div class="page-intro d-flex align-items-center gap-3 mb-4">
+        <span class="stat-icon bg-primary-transparent host-avatar"><i class="bx bx-grid-alt"></i></span>
+        <div class="min-w-0">
+            <div class="eyebrow mb-1">APPLICATION REGISTRY</div>
+            <h1 class="h3 mb-1" th:text="${pageTitle}">Register application</h1>
+            <p class="text-muted mb-0">Name the application and say where it can run. Releases are checked against these rules before every deployment.</p>
+        </div>
+    </div>
+
+    <div class="row g-3">
+    <div class="col-12 col-xl-8">
         <form th:action="@{/applications/save}" th:object="${form}" method="post" novalidate>
             <input type="hidden" th:field="*{id}"><input type="hidden" th:field="*{version}">
-            <div th:if="${#fields.hasGlobalErrors()}" class="alert alert-danger"><p class="mb-0" th:each="e : ${#fields.globalErrors()}" th:text="${e}"></p></div>
+            <div class="card custom-card mb-3">
+                <div class="card-body p-4">
+                    <div th:if="${#fields.hasGlobalErrors()}" class="alert alert-danger"><p class="mb-0" th:each="e : ${#fields.globalErrors()}" th:text="${e}"></p></div>
 
-            <h2 class="h6 border-bottom pb-2">Application</h2>
-            <div class="mb-3"><label class="form-label" for="name">Name</label>
-                <input class="form-control" th:field="*{name}" th:errorclass="is-invalid" required maxlength="120" placeholder="e.g. Customer Portal" autofocus>
-                <div class="invalid-feedback" th:errors="*{name}"></div></div>
-            <div class="mb-4"><label class="form-label" for="description">Description <span class="text-secondary small">(optional)</span></label>
-                <textarea class="form-control" th:field="*{description}" rows="2" maxlength="2000" placeholder="What it does and who owns it"></textarea></div>
+                    <!-- Application -->
+                    <div class="form-section-title mt-0"><i class="bx bx-grid-alt"></i>Application</div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="name">Name</label>
+                            <input class="form-control" th:field="*{name}" th:errorclass="is-invalid" required maxlength="120" placeholder="e.g. Customer Portal" autocomplete="off" autofocus>
+                            <div class="invalid-feedback" th:errors="*{name}"></div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="description">Description <span class="text-muted fw-normal small">(optional)</span></label>
+                            <textarea class="form-control" th:field="*{description}" rows="2" maxlength="2000" placeholder="What it does and who owns it"></textarea>
+                        </div>
+                    </div>
 
-            <h2 class="h6 border-bottom pb-2">Compatibility requirements</h2>
-            <div class="mb-3">
-                <span class="form-label d-block">Servlet API</span>
-                <div class="choice-row" role="radiogroup" aria-label="Servlet API">
-                    <label class="choice"><input type="radio" th:field="*{servletApi}" value="DETECT"><span><strong>Detect from WAR</strong><small>Read it from each uploaded release</small></span></label>
-                    <label class="choice"><input type="radio" th:field="*{servletApi}" value="JAKARTA"><span><strong>jakarta.servlet</strong><small>Jakarta EE 9+, Tomcat 10 and newer</small></span></label>
-                    <label class="choice"><input type="radio" th:field="*{servletApi}" value="JAVAX"><span><strong>javax.servlet</strong><small>Java EE 8 and older, Tomcat 9 and older</small></span></label>
+                    <!-- Compatibility -->
+                    <div class="form-section-title"><i class="bx bx-check-shield"></i>Compatibility <span class="text-muted fw-normal fs-12 ms-1">leave empty what doesn't matter</span></div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <span class="form-label fw-semibold d-block">Servlet API</span>
+                            <div class="choice-row" role="radiogroup" aria-label="Servlet API">
+                                <label class="choice"><input type="radio" class="form-check-input" th:field="*{servletApi}" value="DETECT">
+                                    <span><strong><i class="bx bx-search-alt me-1"></i>Detect from WAR</strong><small>Read from each uploaded release</small></span></label>
+                                <label class="choice"><input type="radio" class="form-check-input" th:field="*{servletApi}" value="JAKARTA">
+                                    <span><strong>jakarta.servlet</strong><small>Jakarta EE 9+ · Tomcat 10 and newer</small></span></label>
+                                <label class="choice"><input type="radio" class="form-check-input" th:field="*{servletApi}" value="JAVAX">
+                                    <span><strong>javax.servlet</strong><small>Java EE 8 and older · Tomcat 9 and older</small></span></label>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-md-3">
+                            <label class="form-label fw-semibold" for="minJavaVersion">Minimum Java</label>
+                            <input type="number" class="form-control" th:field="*{minJavaVersion}" th:errorclass="is-invalid" min="8" max="40" placeholder="e.g. 17">
+                            <div class="invalid-feedback" th:errors="*{minJavaVersion}"></div>
+                        </div>
+                        <div class="col-sm-6 col-md-3">
+                            <label class="form-label fw-semibold" for="maxJavaVersion">Maximum Java</label>
+                            <input type="number" class="form-control" th:field="*{maxJavaVersion}" th:errorclass="is-invalid" min="8" max="40" placeholder="no limit">
+                            <div class="invalid-feedback" th:errors="*{maxJavaVersion}"></div>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <p class="form-text mb-2">Each uploaded WAR's compiled class version raises the minimum automatically.</p>
+                        </div>
+                        <div class="col-12">
+                            <span class="form-label fw-semibold d-block">Supported Tomcat versions <span class="text-muted fw-normal small">(none selected = any version)</span></span>
+                            <div class="d-flex flex-wrap gap-2">
+                                <th:block th:each="line : ${tomcatLines}">
+                                    <input type="checkbox" class="btn-check" th:field="*{supportedTomcatVersions}" th:value="${line}">
+                                    <label class="btn btn-outline-primary btn-sm" th:for="${#ids.prev('supportedTomcatVersions')}" th:text="'Tomcat ' + ${line}">Tomcat</label>
+                                </th:block>
+                            </div>
+                            <div class="text-danger small mt-1" th:errors="*{supportedTomcatVersions}"></div>
+                            <div class="form-text">Click a version to select it (it turns purple with a ✓); click again to remove it. Deployments to other Tomcat versions are blocked.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="otherRequirements">Other deployment requirements <span class="text-muted fw-normal small">(optional)</span></label>
+                            <textarea class="form-control" th:field="*{otherRequirements}" rows="2" maxlength="2000" placeholder="e.g. needs JNDI datasource jdbc/portal; set -Xmx2g"></textarea>
+                            <div class="form-text">Shown to whoever deploys; not checked automatically.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+                    <span class="text-muted fs-12 d-none d-md-inline">Nothing is saved until you press Save.</span>
+                    <span class="flex-grow-1"></span>
+                    <a class="btn btn-light border" th:href="${form.id == null} ? @{/applications} : @{/applications/{id}(id=${form.id})}">Cancel</a>
+                    <button class="btn btn-primary btn-wave" type="submit"><i class="bx bx-save me-1"></i><span th:text="${form.id == null ? 'Register application' : 'Save changes'}">Save</span></button>
                 </div>
             </div>
-            <div class="row">
-                <div class="col-sm-6 col-md-3 mb-3"><label class="form-label" for="minJavaVersion">Minimum Java</label>
-                    <input type="number" class="form-control" th:field="*{minJavaVersion}" th:errorclass="is-invalid" min="8" max="40" placeholder="e.g. 17">
-                    <div class="invalid-feedback" th:errors="*{minJavaVersion}"></div></div>
-                <div class="col-sm-6 col-md-3 mb-3"><label class="form-label" for="maxJavaVersion">Maximum Java</label>
-                    <input type="number" class="form-control" th:field="*{maxJavaVersion}" th:errorclass="is-invalid" min="8" max="40" placeholder="no limit">
-                    <div class="invalid-feedback" th:errors="*{maxJavaVersion}"></div></div>
-                <div class="col-md-6 mb-3 d-flex align-items-end"><p class="small text-secondary mb-2">The detected class-file level of each WAR raises the minimum automatically.</p></div>
-            </div>
-            <div class="mb-3">
-                <span class="form-label d-block">Supported Tomcat versions <span class="text-secondary small">(none selected = any version)</span></span>
-                <div class="d-flex flex-wrap gap-2">
-                    <th:block th:each="line : ${tomcatLines}">
-                        <input type="checkbox" class="btn-check" th:field="*{supportedTomcatVersions}" th:value="${line}">
-                        <label class="btn btn-outline-secondary btn-sm" th:for="${#ids.prev('supportedTomcatVersions')}" th:text="'Tomcat ' + ${line}">Tomcat</label>
-                    </th:block>
-                </div>
-                <div class="text-danger small mt-1" th:errors="*{supportedTomcatVersions}"></div>
-            </div>
-            <div class="mb-4"><label class="form-label" for="otherRequirements">Other deployment requirements <span class="text-secondary small">(optional)</span></label>
-                <textarea class="form-control" th:field="*{otherRequirements}" rows="2" maxlength="2000" placeholder="e.g. needs JNDI datasource jdbc/portal; set -Xmx2g"></textarea></div>
-
-            <button class="btn btn-primary" type="submit" th:text="${form.id == null ? 'Register application' : 'Save changes'}">Save</button>
-            <a class="btn btn-outline-secondary" th:href="${form.id == null} ? @{/applications} : @{/applications/{id}(id=${form.id})}">Cancel</a>
         </form>
-    </section>
+    </div>
+
+    <!-- Notes -->
+    <div class="col-12 col-xl-4">
+        <div class="form-aside">
+            <div class="card custom-card mb-3">
+                <div class="card-header"><div class="card-title">How it works</div></div>
+                <div class="card-body">
+                    <ol class="help-steps">
+                        <li><strong>Register the application</strong><span>A name, and the rules for where it may run.</span></li>
+                        <li><strong>Upload its WAR releases</strong><span>Each file is checksummed and inspected: Servlet API and Java level are detected.</span></li>
+                        <li><strong>Deploy</strong><span>Before anything changes, every target Tomcat is checked against these rules.</span></li>
+                    </ol>
+                    <div class="help-note"><i class="bx bx-info-circle me-1"></i>Unknown values are reported as <em>Unknown</em>, never assumed compatible.</div>
+                </div>
+            </div>
+            <div class="card custom-card mb-3">
+                <div class="card-header"><div class="card-title">Tomcat at a glance</div></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 card-table glance-table">
+                        <thead><tr><th>Tomcat</th><th>Servlet API</th><th>Java</th></tr></thead>
+                        <tbody>
+                        <tr><td>11.0</td><td><code>jakarta</code> 6.1</td><td>17+</td></tr>
+                        <tr><td>10.1</td><td><code>jakarta</code> 6.0</td><td>11+</td></tr>
+                        <tr><td>10.0</td><td><code>jakarta</code> 5.0</td><td>8+</td></tr>
+                        <tr><td>9.0</td><td><code>javax</code> 4.0</td><td>8+</td></tr>
+                        <tr><td>8.5</td><td><code>javax</code> 3.1</td><td>7+</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
 </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

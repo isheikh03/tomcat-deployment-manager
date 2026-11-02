@@ -28,11 +28,13 @@
         container.replaceChildren();
         window.ConnectivityUI.renderChecks(container, result, { title: "Test result:", hideNotApplicable: true });
         container.append(el("div", { class: "small text-secondary mt-2", text: "This test used the values in the form. Nothing is saved until you press Save." }));
+        container.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
     function showError(container, message) {
         container.hidden = false;
         container.replaceChildren(el("div", { class: "alert alert-danger small mb-0", text: message }));
+        container.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
     // ---------- Host form ----------
