@@ -83,6 +83,11 @@
 .config-icon { width: 2rem; height: 2rem; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: var(--primary01); color: var(--primary-color); font-size: 1rem; }
 .config-label { flex-shrink: 0; font-size: .8125rem; color: var(--text-muted); }
 .config-value { flex: 1; min-width: 0; text-align: right; font-size: .875rem; font-weight: 600; color: var(--default-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.config-value.wrap { white-space: normal; overflow-wrap: anywhere; }
+/* Long values (paths, URLs): label next to the icon, the full value on its own line underneath */
+.config-list li.stacked { flex-wrap: wrap; row-gap: .3rem; }
+.config-list li.stacked .config-value { flex: 0 0 100%; padding-inline-start: 2.75rem; text-align: left; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.config-list li.stacked code { font-size: .8rem; font-weight: 500; overflow-wrap: anywhere; }
 .config-code { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; font-size: .78rem; font-weight: 500; }
 .config-notes { margin: .5rem 0 .75rem; padding: .75rem 1rem; border-radius: .5rem; background: var(--soft); font-size: .8125rem; }
 .config-notes-title { font-size: .72rem; font-weight: 700; color: var(--text-muted); margin-bottom: .25rem; display: flex; align-items: center; }
@@ -134,25 +139,22 @@ tr.row-link { cursor: pointer; }
 .activity-list li:first-child { border-top: 0; }
 .activity-icon { width: 2.25rem; height: 2.25rem; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: var(--primary01); color: var(--primary-color); font-size: 1.05rem; }
 
-/* ---------- Host "login" dialog (WinSCP style) ---------- */
-.login-dialog { display: grid; grid-template-columns: 250px minmax(0, 1fr); background: var(--custom-white); border-radius: .5rem; overflow: hidden; max-width: 1100px; box-shadow: 0 .125rem 0 rgba(10, 10, 10, .04), 0 .25rem 1rem rgba(var(--dark-rgb), .04); }
-.site-list { background: var(--soft); border-right: 1px solid var(--line); padding: 12px 8px; max-height: 640px; overflow-y: auto; }
-.site-list-header { font-size: 10px; letter-spacing: .12em; font-weight: 700; color: var(--muted); text-transform: uppercase; padding: 4px 10px 8px; }
-.site-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; color: var(--default-text-color); text-decoration: none; font-size: 13px; }
-.site-item:hover { background: var(--primary005); color: var(--default-text-color); }
-.site-item.active { background: var(--primary01); color: var(--primary-color); }
-.site-icon { width: 26px; height: 26px; flex-shrink: 0; display: grid; place-items: center; border-radius: 6px; background: var(--custom-white); border: 1px solid var(--line); font-size: 13px; }
-.site-text { min-width: 0; flex: 1; }
-.site-text strong, .site-text small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.site-text small { color: var(--muted); font-size: 11px; }
-.site-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; padding: 0; }
-.session-pane { padding: 22px 26px; min-width: 0; }
-.session-group { border: 1px solid var(--line); border-radius: 8px; padding: 6px 18px 18px; }
-.session-group legend { float: none; width: auto; font-size: 12px; font-weight: 700; color: var(--muted); padding: 0 6px; margin-bottom: 4px; }
-.advanced { margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 18px; }
-.advanced[open] { padding-bottom: 18px; }
-.advanced summary { font-size: 13px; font-weight: 600; cursor: pointer; }
-.session-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+/* ---------- Host form ---------- */
+@media (min-width: 1200px) { .form-aside { position: sticky; top: 4.75rem; } }
+.help-steps { counter-reset: step; list-style: none; margin: 0; padding: 0; }
+.help-steps li { counter-increment: step; position: relative; padding: 0 0 .9rem 2.4rem; font-size: .8125rem; }
+.help-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center; background: var(--primary01); color: var(--primary-color); font-weight: 700; font-size: .75rem; }
+.help-steps strong, .help-steps span { display: block; }
+.help-steps span { color: var(--muted); font-size: .75rem; }
+/* Toggle buttons from th:field checkboxes: Thymeleaf puts a hidden "_field" marker between the checkbox and its label,
+   which breaks Bootstrap's ".btn-check:checked + .btn" highlight, so match across the marker too. */
+.btn-check:checked + input[type=hidden] + .btn { color: #fff; background-color: var(--primary-color); border-color: var(--primary-color); }
+.btn-check:checked + input[type=hidden] + .btn::before { content: "\2713"; margin-inline-end: .35rem; font-weight: 700; }
+.btn-check:focus-visible + input[type=hidden] + .btn { box-shadow: 0 0 0 .25rem var(--primary02); }
+.glance-table > :not(caption) > * > * { padding: .5rem 1rem; font-size: .8125rem; }
+.help-note {font-size: .75rem; color: var(--muted); background: var(--soft); border-radius: .5rem; padding: .6rem .75rem; display: flex; align-items: flex-start; }
+.form-section-title { display: flex; align-items: center; gap: .5rem; margin: 1.75rem 0 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--default-border); font-size: .9375rem; font-weight: 700; color: var(--default-text-color); }
+.form-section-title i { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--primary01); color: var(--primary-color); font-size: .95rem; }
 .draft-result { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
 .method-explainer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 1100px; }
 .method-explainer > div { background: var(--custom-white); border-radius: .5rem; padding: 12px 16px; font-size: 12px; box-shadow: 0 .125rem 0 rgba(10, 10, 10, .04); border-inline-start: 3px solid var(--primary-color); }
@@ -168,10 +170,7 @@ tr.row-link { cursor: pointer; }
 .method-text { display: block; font-size: 12px; color: var(--muted); }
 .method-panel { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; background: var(--soft); }
 @media (max-width: 760px) {
-  .login-dialog { grid-template-columns: 1fr; }
-  .site-list { border-right: 0; border-bottom: 1px solid var(--line); max-height: 180px; }
   .method-cards, .method-explainer { grid-template-columns: 1fr; }
-  .session-pane { padding: 16px; }
 }
 .deploy-preview { border: 1px dashed var(--line); border-radius: 6px; padding: 8px 12px; font-size: 13px; background: var(--soft); min-height: 38px; }
 .deploy-preview code { word-break: break-all; }

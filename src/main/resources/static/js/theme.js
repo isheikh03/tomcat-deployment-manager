@@ -6,8 +6,8 @@
 
     function toggleTheme() {
         const dark = html.getAttribute("data-theme-mode") !== "dark";
+        // The menu is dark in both modes (data-menu-styles in the page), so only the theme mode changes.
         html.setAttribute("data-theme-mode", dark ? "dark" : "light");
-        html.setAttribute("data-menu-styles", dark ? "dark" : "light");
         try {
             if (dark) localStorage.setItem("Solicdarktheme", "true"); else localStorage.removeItem("Solicdarktheme");
         } catch (e) { /* not remembered */ }

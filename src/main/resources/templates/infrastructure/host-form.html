@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="light" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="dark" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
 <body>
 <div class="page">
@@ -10,146 +10,161 @@
     <nav aria-label="breadcrumb"><ol class="breadcrumb small">
         <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
         <li class="breadcrumb-item" th:if="${host.id != null}"><a th:href="@{/infrastructure/hosts/{id}(id=${host.id})}" th:text="${host.name}">host</a></li>
-        <li class="breadcrumb-item active" th:text="${host.id == null ? 'New site' : 'Edit site'}">New site</li>
+        <li class="breadcrumb-item active" th:text="${host.id == null ? 'Add Linux host' : 'Edit'}">Add Linux host</li>
     </ol></nav>
-    <div class="page-intro d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
-        <div>
-            <div class="eyebrow">LINUX HOST · SSH / SFTP</div>
-            <h1 class="h4 mb-0" th:text="${host.id == null ? 'Add Linux host' : 'Edit ' + host.name}">Add Linux host</h1>
+    <div class="page-intro d-flex align-items-center gap-3 mb-4">
+        <span class="stat-icon bg-primary-transparent host-avatar"><i class="bx bx-server"></i></span>
+        <div class="min-w-0">
+            <div class="eyebrow mb-1">LINUX HOST · SSH / SFTP</div>
+            <h1 class="h3 mb-1" th:text="${host.id == null ? 'Add Linux host' : 'Edit ' + host.name}">Add Linux host</h1>
+            <p class="text-muted mb-0">Fill in the server and its SSH login, test the connection, then save.</p>
         </div>
-        <p class="small text-secondary mb-0">Enter the connection like a WinSCP session, test it, then save.</p>
     </div>
-    <div th:unless="${encryptionConfigured}" class="alert alert-warning">APP_ENCRYPTION_KEY is not configured; credentials cannot be saved.</div>
+    <div th:unless="${encryptionConfigured}" class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="bx bx-error fs-18"></i><span><strong>APP_ENCRYPTION_KEY is not configured.</strong> Credentials cannot be saved until it is set.</span></div>
 
-    <div class="login-dialog">
-        <!-- Saved sites, like WinSCP's site list -->
-        <aside class="site-list" aria-label="Saved sites">
-            <div class="site-list-header">Sites</div>
-            <a class="site-item" th:classappend="${host.id == null} ? ' active'" th:href="@{/infrastructure/hosts/new}">
-                <span class="site-icon"><i class="bx bx-plus"></i></span><span class="site-text"><strong>New site</strong></span></a>
-            <a class="site-item" th:each="s : ${sites}" th:classappend="${s.id == host.id} ? ' active'" th:href="@{/infrastructure/hosts/{id}/edit(id=${s.id})}">
-                <span class="site-icon"><i class="bx bx-server"></i></span>
-                <span class="site-text"><strong th:text="${s.name}">site</strong>
-                    <small th:text="${(s.sshUsername != null ? s.sshUsername + '@' : '') + s.hostname}">user@host</small></span>
-                <span class="site-dot" th:classappend="${hostStatuses.getOrDefault(s.id, neverTested).badgeClass()}"
-                      th:title="${hostStatuses.getOrDefault(s.id, neverTested).label()}"></span>
-            </a>
-        </aside>
+    <div class="row g-3">
+    <div class="col-12 col-xl-8">
+        <form id="host-form" th:action="@{/infrastructure/hosts/save}" th:object="${host}" method="post" novalidate
+              th:attr="data-draft-url=@{/api/connectivity-tests/drafts/host}">
+            <input type="hidden" th:field="*{id}">
+            <div class="card custom-card mb-3">
+                <div class="card-body p-4">
+                    <div th:if="${#fields.hasGlobalErrors()}" class="alert alert-danger"><p class="mb-0" th:each="e : ${#fields.globalErrors()}" th:text="${e}"></p></div>
 
-        <section class="session-pane">
-            <form id="host-form" th:action="@{/infrastructure/hosts/save}" th:object="${host}" method="post" novalidate
-                  th:attr="data-draft-url=@{/api/connectivity-tests/drafts/host}">
-                <input type="hidden" th:field="*{id}">
-                <div th:if="${#fields.hasGlobalErrors()}" class="alert alert-danger"><p class="mb-0" th:each="e : ${#fields.globalErrors()}" th:text="${e}"></p></div>
-
-                <fieldset class="session-group">
-                    <legend>Session</legend>
+                    <!-- Server -->
+                    <div class="form-section-title mt-0"><i class="bx bx-server"></i>Server</div>
                     <div class="row g-3">
                         <div class="col-12">
-                            <label class="form-label" for="name">Server name</label>
+                            <label class="form-label fw-semibold" for="name">Server name</label>
                             <input class="form-control" th:field="*{name}" th:errorclass="is-invalid" required maxlength="120"
                                    placeholder="e.g. Production App Server 01" autocomplete="off" autofocus>
                             <div class="invalid-feedback" th:errors="*{name}"></div>
-                            <div class="form-text">A friendly name shown in lists and deployments. The connection uses the host name or IP below.</div>
+                            <div class="form-text">A friendly name for lists and deployments.</div>
                         </div>
-                        <div class="col-sm-5">
-                            <label class="form-label" for="protocol">File protocol</label>
-                            <select id="protocol" class="form-select" disabled><option>SFTP (over SSH)</option></select>
-                        </div>
-                        <div class="col-sm-7 d-flex align-items-end">
-                            <p class="small text-secondary mb-1">Used to upload WARs to <code>webapps</code>. SCP and FTP are not supported.</p>
-                        </div>
-                        <div class="col-sm-9">
-                            <label class="form-label" for="hostname">Host name / IP address</label>
-                            <input class="form-control" th:field="*{hostname}" th:errorclass="is-invalid" required maxlength="255" placeholder="tomcat01.example.com or 10.0.0.15" autocomplete="off">
+                        <div class="col-sm-8">
+                            <label class="form-label fw-semibold" for="hostname">Host name / IP address</label>
+                            <input class="form-control" th:field="*{hostname}" th:errorclass="is-invalid" required maxlength="255"
+                                   placeholder="tomcat01.example.com or 10.0.0.15" autocomplete="off" spellcheck="false">
                             <div class="invalid-feedback" th:errors="*{hostname}"></div>
                         </div>
-                        <div class="col-sm-3">
-                            <label class="form-label" for="sshPort">Port number</label>
+                        <div class="col-sm-4">
+                            <label class="form-label fw-semibold" for="sshPort">SSH port</label>
                             <input type="number" class="form-control" th:field="*{sshPort}" th:errorclass="is-invalid" min="1" max="65535" required>
                             <div class="invalid-feedback" th:errors="*{sshPort}"></div>
+                            <div class="form-text">Usually 22.</div>
                         </div>
+                    </div>
+
+                    <!-- Login -->
+                    <div class="form-section-title"><i class="bx bx-user"></i>Login</div>
+                    <div class="row g-3">
                         <div class="col-sm-6">
-                            <label class="form-label" for="sshUsername">User name</label>
-                            <input class="form-control" th:field="*{sshUsername}" th:errorclass="is-invalid" maxlength="64" placeholder="deploy" autocomplete="off">
+                            <label class="form-label fw-semibold" for="sshUsername">User name</label>
+                            <input class="form-control" th:field="*{sshUsername}" th:errorclass="is-invalid" maxlength="64" placeholder="deploy"
+                                   autocomplete="off" autocapitalize="none" spellcheck="false">
                             <div class="invalid-feedback" th:errors="*{sshUsername}"></div>
                         </div>
                         <div class="col-sm-6">
-                            <span class="form-label d-block">Authentication</span>
+                            <span class="form-label fw-semibold d-block">Sign in with</span>
                             <div class="btn-group w-100" role="group" aria-label="Authentication method">
                                 <input type="radio" class="btn-check" th:field="*{sshAuthMethod}" value="PASSWORD" id="auth-password" data-auth-radio>
-                                <label class="btn btn-outline-secondary" for="auth-password">Password</label>
+                                <label class="btn btn-outline-primary" for="auth-password"><i class="bx bx-lock-alt me-1"></i>Password</label>
                                 <input type="radio" class="btn-check" th:field="*{sshAuthMethod}" value="PRIVATE_KEY" id="auth-key" data-auth-radio>
-                                <label class="btn btn-outline-secondary" for="auth-key">Private key</label>
+                                <label class="btn btn-outline-primary" for="auth-key"><i class="bx bx-key me-1"></i>Private key</label>
                             </div>
                         </div>
 
                         <div class="col-12" data-auth="PASSWORD">
-                            <label class="form-label" for="sshPassword">Password
-                                <span th:if="*{passwordStored}" class="badge text-bg-success ms-1">Saved</span></label>
-                            <input type="password" class="form-control" th:field="*{sshPassword}" th:errorclass="is-invalid" autocomplete="new-password"
-                                   th:placeholder="*{passwordStored} ? 'Leave blank to keep the saved password' : ''">
-                            <div class="invalid-feedback" th:errors="*{sshPassword}"></div>
+                            <label class="form-label fw-semibold" for="sshPassword">Password
+                                <span th:if="*{passwordStored}" class="badge text-bg-success ms-1"><i class="bx bx-check me-1"></i>Saved</span></label>
+                            <div class="input-group has-validation">
+                                <input type="password" class="form-control" th:field="*{sshPassword}" th:errorclass="is-invalid" autocomplete="new-password"
+                                       th:placeholder="*{passwordStored} ? 'Leave blank to keep the saved password' : ''">
+                                <button class="btn btn-light border" type="button" data-toggle-password="sshPassword" aria-label="Show password">Show</button>
+                                <div class="invalid-feedback" th:errors="*{sshPassword}"></div>
+                            </div>
                         </div>
 
                         <div class="col-12" data-auth="PRIVATE_KEY">
-                            <label class="form-label" for="key-file">Private key file
-                                <span th:if="*{privateKeyStored}" class="badge text-bg-success ms-1">Saved</span></label>
+                            <label class="form-label fw-semibold" for="key-file">Private key
+                                <span th:if="*{privateKeyStored}" class="badge text-bg-success ms-1"><i class="bx bx-check me-1"></i>Saved</span></label>
                             <div class="input-group">
                                 <input type="file" class="form-control" id="key-file" accept=".ppk,.pem,.key,.txt,*" data-key-file>
-                                <button class="btn btn-outline-secondary" type="button" data-toggle-paste>Paste instead</button>
+                                <button class="btn btn-light border" type="button" data-toggle-paste>Paste instead</button>
                             </div>
-                            <div class="form-text" data-key-status th:text="*{privateKeyStored} ? 'A key is saved. Choose a file only to replace it.' : 'PuTTY (.ppk), OpenSSH or PEM. Ed25519, ECDSA or RSA.'">Choose a key file.</div>
+                            <div class="form-text" data-key-status th:text="*{privateKeyStored} ? 'A key is saved. Choose a file only to replace it.' : 'PuTTY (.ppk), OpenSSH or PEM: Ed25519, ECDSA or RSA. Stored encrypted.'">Choose a key file.</div>
                             <textarea class="form-control font-monospace small mt-2" th:field="*{sshPrivateKey}" th:errorclass="is-invalid" rows="5" hidden
                                       autocomplete="off" spellcheck="false" placeholder="-----BEGIN OPENSSH PRIVATE KEY----- … or PuTTY-User-Key-File-3: …" data-key-text></textarea>
                             <div class="invalid-feedback" th:errors="*{sshPrivateKey}"></div>
-                            <label class="form-label mt-3" for="sshKeyPassphrase">Key passphrase <span class="text-secondary small">(if the key is protected)</span>
-                                <span th:if="*{passphraseStored}" class="badge text-bg-success ms-1">Saved</span></label>
+                            <label class="form-label fw-semibold mt-3" for="sshKeyPassphrase">Key passphrase <span class="text-muted fw-normal small">(only if the key is protected)</span>
+                                <span th:if="*{passphraseStored}" class="badge text-bg-success ms-1"><i class="bx bx-check me-1"></i>Saved</span></label>
                             <input type="password" class="form-control" th:field="*{sshKeyPassphrase}" th:errorclass="is-invalid" autocomplete="new-password">
                             <div class="invalid-feedback" th:errors="*{sshKeyPassphrase}"></div>
                         </div>
-                    </div>
-                </fieldset>
 
-                <details class="advanced" th:open="${#fields.hasErrors('sshHostKeyFingerprint')}" data-advanced>
-                    <summary>Advanced: host key, notes</summary>
-                    <div class="row g-3 pt-2">
-                        <div class="col-12">
-                            <label class="form-label" for="sshHostKeyFingerprint">Server host key fingerprint (SHA-256)</label>
-                            <input class="form-control font-monospace" th:field="*{sshHostKeyFingerprint}" th:errorclass="is-invalid" maxlength="100" placeholder="SHA256:…" autocomplete="off" spellcheck="false">
-                            <div class="invalid-feedback" th:errors="*{sshHostKeyFingerprint}"></div>
-                            <div class="form-text">Leave blank and press <strong>Test connection</strong>: like WinSCP, you will be asked to accept the server's key.
-                                Verify it first on the server: <code>ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</code></div>
-                        </div>
-                        <div class="col-12">
-                            <div class="form-check"><input type="checkbox" class="form-check-input" th:field="*{enabled}">
-                                <label class="form-check-label" for="enabled1">Host enabled</label></div>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label" for="notes">Notes</label>
-                            <textarea class="form-control" th:field="*{notes}" rows="2" maxlength="2000"></textarea>
-                        </div>
                         <div class="col-12" th:if="*{passwordStored or privateKeyStored or passphraseStored}">
-                            <div class="form-check"><input type="checkbox" class="form-check-input" th:field="*{clearStoredSecrets}">
-                                <label class="form-check-label" for="clearStoredSecrets1">Remove all saved SSH credentials for this host</label></div>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" th:field="*{clearStoredSecrets}">
+                                <label class="form-check-label" for="clearStoredSecrets1">Remove all saved SSH credentials for this host</label>
+                            </div>
                         </div>
                     </div>
-                </details>
 
-                <div class="session-actions">
-                    <button type="button" class="btn btn-outline-primary" data-draft-test>Test connection</button>
-                    <span class="flex-grow-1"></span>
-                    <a class="btn btn-outline-secondary" th:href="${host.id == null} ? @{/infrastructure} : @{/infrastructure/hosts/{id}(id=${host.id})}">Cancel</a>
-                    <button class="btn btn-primary" type="submit">Save</button>
+                    <!-- Server identity and other settings -->
+                    <div class="form-section-title" data-advanced><i class="bx bx-shield-quarter"></i>Server identity &amp; other</div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="sshHostKeyFingerprint">Server host key fingerprint (SHA-256)</label>
+                            <input class="form-control font-monospace" th:field="*{sshHostKeyFingerprint}" th:errorclass="is-invalid" maxlength="100"
+                                   placeholder="SHA256:…" autocomplete="off" spellcheck="false">
+                            <div class="invalid-feedback" th:errors="*{sshHostKeyFingerprint}"></div>
+                            <div class="form-text">Leave it blank and press <strong>Test connection</strong>: you are asked to accept the server's key.
+                                Check it first on the server with <code>ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</code>.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="notes">Notes <span class="text-muted fw-normal small">(optional)</span></label>
+                            <textarea class="form-control" th:field="*{notes}" rows="2" maxlength="2000" placeholder="e.g. owner, maintenance window"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" class="form-check-input" role="switch" th:field="*{enabled}">
+                                <label class="form-check-label fw-semibold" for="enabled1">Host enabled</label>
+                            </div>
+                            <div class="form-text">Disabled hosts and their Tomcat instances cannot receive deployments.</div>
+                        </div>
+                    </div>
+
+                    <div class="draft-result mt-4" data-draft-result hidden></div>
                 </div>
-                <div class="draft-result" data-draft-result hidden></div>
-            </form>
-        </section>
+                <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-wave" data-draft-test><i class="bx bx-transfer-alt me-1"></i>Test connection</button>
+                    <span class="text-muted fs-12 d-none d-md-inline">Nothing is saved until you press Save.</span>
+                    <span class="flex-grow-1"></span>
+                    <a class="btn btn-light border" th:href="${host.id == null} ? @{/infrastructure} : @{/infrastructure/hosts/{id}(id=${host.id})}">Cancel</a>
+                    <button class="btn btn-primary btn-wave" type="submit"><i class="bx bx-save me-1"></i>Save host</button>
+                </div>
+            </div>
+        </form>
     </div>
 
-    <div class="method-explainer mt-3">
-        <div><strong>SSH / SFTP (this form)</strong><span>One login per Linux server, like a WinSCP session. Used to copy WAR files into each Tomcat's <code>webapps</code> directory.</span></div>
-        <div><strong>Tomcat Manager (HTTP/HTTPS)</strong><span>A separate web interface of each Tomcat. Configure it on the Tomcat instance; it does not use SSH.</span></div>
+    <!-- Notes: how adding a host works -->
+    <div class="col-12 col-xl-4">
+        <div class="form-aside">
+            <div class="card custom-card mb-3">
+                <div class="card-header"><div class="card-title">How it works</div></div>
+                <div class="card-body">
+                    <ol class="help-steps">
+                        <li><strong>Enter the server and login</strong><span>Like a WinSCP session: host, port, user and a password or key.</span></li>
+                        <li><strong>Test connection</strong><span>Connects over SSH and opens SFTP. Nothing is changed on the server.</span></li>
+                        <li><strong>Accept the host key</strong><span>Only after comparing it with the fingerprint shown on the server.</span></li>
+                        <li><strong>Save</strong><span>Then add the Tomcat instances that run on this host.</span></li>
+                    </ol>
+                    <div class="help-note"><i class="bx bx-info-circle me-1"></i>Tomcat Manager (HTTP/HTTPS) deployments don't use SSH; set them up on the Tomcat instance instead.</div>
+                </div>
+            </div>
+        </div>
+    </div>
     </div>
 </div>
 </main>

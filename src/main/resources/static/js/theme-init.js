@@ -5,7 +5,6 @@
         if (localStorage.getItem("Solicdarktheme")) {
             const html = document.documentElement;
             html.setAttribute("data-theme-mode", "dark");
-            html.setAttribute("data-menu-styles", "dark");
         }
     } catch (e) { /* storage unavailable: stay light */ }
 })();

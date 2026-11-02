@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-TomcatDeploymentManagerApplication<tomcat-deployment-manager>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.tomcatmanager.TomcatDeploymentManagerApplication",
+            "projectName": "tomcat-deployment-manager",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
