@@ -13,7 +13,10 @@
             <h1 class="h3 mb-1">Deployment history</h1>
             <p class="text-secondary mb-0">Every deployment with its exact targets, outcome and logs.</p>
         </div>
-        <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-primary" th:href="@{/deployments/new}"><i class="bx bx-rocket me-1"></i>New deployment</a>
+        <div class="d-flex gap-2" sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')">
+            <a class="btn btn-outline-primary" th:href="@{/deployments/quick}"><i class="bx bx-bolt-circle me-1"></i>Quick deployment</a>
+            <a class="btn btn-primary" th:href="@{/deployments/new}"><i class="bx bx-rocket me-1"></i>New deployment</a>
+        </div>
     </div>
     <th:block th:replace="~{fragments/layout :: flash}"></th:block>
 

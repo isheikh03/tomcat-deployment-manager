@@ -22,6 +22,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.validation.BeanPropertyBindingResult;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +35,7 @@ import static org.springframework.security.test.web.servlet.response.SecurityMoc
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -179,6 +181,15 @@ class AccountSecurityIntegrationTest extends DatabaseIntegrationTest {
         mvc.perform(get("/releases/upload").with(user("op").roles("DEPLOYMENT_OPERATOR"))).andExpect(status().isOk());
     }
 
+    @Test void quickDeploymentPageFollowsTheUploadPolicy() throws Exception {
+        settings.update(Map.of(SettingsService.OPERATOR_UPLOAD, "false"), "it");
+        mvc.perform(get("/deployments/quick").with(user("op").roles("DEPLOYMENT_OPERATOR"))).andExpect(status().isForbidden());
+        settings.update(Map.of(SettingsService.OPERATOR_UPLOAD, "true"), "it");
+        mvc.perform(get("/deployments/quick").with(user("op").roles("DEPLOYMENT_OPERATOR"))).andExpect(status().isOk());
+        mvc.perform(get("/deployments/quick").with(user("admin").roles("ADMIN"))).andExpect(status().isOk());
+        mvc.perform(get("/deployments/quick").with(user("viewer").roles("VIEWER"))).andExpect(status().isForbidden());
+    }
+
     @Test void notificationsAreReadPerUser() {
         notifications.publish(Notification.Level.WARNING, Notification.Category.HEALTH, "a", "first", null);
         notifications.publish(Notification.Level.SUCCESS, Notification.Category.DEPLOYMENT, "b", "second", "/deployments/1");
@@ -186,6 +197,30 @@ class AccountSecurityIntegrationTest extends DatabaseIntegrationTest {
         notifications.markAllRead("alice");
         assertThat(notifications.unreadCount("alice")).isZero();
         assertThat(notifications.unreadCount("bob")).isEqualTo(2);
+    }
+
+    @Test void aSingleNotificationCanBeMarkedRead() throws Exception {
+        for (String title : List.of("a", "b", "c")) notifications.publish(Notification.Level.INFO, Notification.Category.HEALTH, title, title, null);
+        List<Long> ids = notifications.recent().stream().map(Notification::getId).sorted().toList();
+        long first = ids.get(0), second = ids.get(1), third = ids.get(2);
+
+        notifications.markRead("alice", second);
+        notifications.markRead("alice", second); // repeating it changes nothing
+        assertThat(notifications.unreadCount("alice")).isEqualTo(2);
+        assertThat(notifications.readIds("alice", ids)).containsExactly(second);
+        assertThat(notifications.unreadCount("bob")).isEqualTo(3);
+
+        // Through the API, as the bell and the page call it; viewers may do it too.
+        mvc.perform(post("/api/notifications/" + third + "/read").with(csrf()).with(user("alice").roles("VIEWER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.unread").value(1));
+        mvc.perform(post("/api/notifications/999999/read").with(csrf()).with(user("alice").roles("VIEWER"))).andExpect(status().isNotFound());
+        mvc.perform(get("/notifications").with(user("alice").roles("VIEWER"))).andExpect(status().isOk());
+
+        notifications.markAllRead("alice");
+        assertThat(notifications.unreadCount("alice")).isZero();
+        assertThat(notifications.readIds("alice", ids)).containsExactlyInAnyOrder(first, second, third);
+        assertThat(jdbc.queryForObject("select count(*) from notification_reads where username = 'alice'", Long.class))
+                .as("rows covered by the marker are removed").isZero();
     }
 
     @Test void anInstanceJoinsAGroupOnlyOnce() {

@@ -5,4 +5,5 @@ import java.util.List;
 
 public interface DeploymentLogRepository extends JpaRepository<DeploymentLog, Long> {
     List<DeploymentLog> findByRunIdAndIdGreaterThanOrderByIdAsc(Long runId, Long afterId);
+    List<DeploymentLog> findByRunIdAndEventInOrderByIdAsc(Long runId, java.util.Collection<String> events);
 }

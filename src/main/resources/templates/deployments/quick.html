@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="dark" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('deployments')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/deployments}">Deployments</a></li>
+        <li class="breadcrumb-item active">Quick deployment</li>
+    </ol></nav>
+    <div class="page-intro mb-4">
+        <div class="eyebrow">QUICK DEPLOYMENT</div>
+        <h1 class="h3 mb-1">Quick deployment</h1>
+        <p class="text-secondary mb-0">Upload a WAR, pick the Tomcat instances, check connectivity and deploy. The application and version are set up for you;
+            backups, health checks and rollback work as for any deployment.</p>
+    </div>
+
+    <section class="panel empty-state" th:unless="${hasInstances}">
+        <div class="empty-icon"><i class="bx bx-server"></i></div>
+        <h2 class="h6">No Tomcat instance yet</h2>
+        <p class="text-secondary small mb-3">Add a Linux host and a Tomcat instance first.</p>
+        <a class="btn btn-primary btn-sm" th:href="@{/infrastructure}">Open infrastructure</a>
+    </section>
+
+    <div class="wizard" id="quick" th:if="${hasInstances}"
+         th:attr="data-upload-url=@{/api/quick-deployments/release},data-options-url=@{/api/deployments/wizard-options},data-preview-url=@{/api/deployments/preview},data-submit-url=@{/api/deployments},data-request-id=${requestId},data-max-bytes=${maxBytes},data-max-size=${maxSize}">
+        <span sec:authorize="hasRole('ADMIN')" data-is-admin hidden></span>
+        <ol class="wizard-steps" aria-label="Steps">
+            <li data-step-nav="1" class="active"><span>1</span>Upload WAR</li>
+            <li data-step-nav="2"><span>2</span>Tomcat instances</li>
+            <li data-step-nav="3"><span>3</span>Check connectivity</li>
+            <li data-step-nav="4"><span>4</span>Deploy</li>
+        </ol>
+
+        <div class="wizard-body">
+            <section class="panel wizard-step" data-step="1">
+                <h2 class="h6">1 · Upload the WAR</h2>
+                <div data-upload-form>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-7">
+                            <label class="form-label small" for="q-app">Application <span class="text-secondary">(optional)</span></label>
+                            <input class="form-control" id="q-app" list="q-app-names" maxlength="120" autocomplete="off" spellcheck="false" placeholder="Detected from the file name">
+                            <datalist id="q-app-names"><option th:each="name : ${applicationNames}" th:value="${name}"></option></datalist>
+                            <div class="form-text" sec:authorize="hasRole('ADMIN')">A new name registers the application automatically.</div>
+                            <div class="form-text" sec:authorize="!hasRole('ADMIN')">Must be an existing application.</div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small" for="q-version">Version <span class="text-secondary">(optional)</span></label>
+                            <input class="form-control" id="q-version" maxlength="100" autocomplete="off" spellcheck="false" placeholder="Detected">
+                            <div class="form-text">From the file name or the WAR manifest.</div>
+                        </div>
+                    </div>
+                    <label class="drop-zone" for="q-file" data-drop-zone tabindex="0">
+                        <input type="file" id="q-file" accept=".war" class="visually-hidden">
+                        <span class="drop-icon"><i class="bx bx-cloud-upload"></i></span>
+                        <span class="drop-title" data-drop-title>Drag a .war file here or <u>browse</u></span>
+                        <span class="drop-hint" th:text="'Maximum ' + ${maxSize} + ' · uploading starts right away'">Maximum 1 GB</span>
+                    </label>
+                    <div class="upload-progress mt-3" data-progress hidden>
+                        <div class="d-flex justify-content-between small mb-1"><span data-progress-label>Uploading…</span><span data-progress-percent>0%</span></div>
+                        <div class="progress" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" data-progress-bar style="width: 0%"></div>
+                        </div>
+                        <button class="btn btn-link btn-sm px-0" type="button" data-cancel-upload>Cancel upload</button>
+                    </div>
+                </div>
+                <div data-upload-result hidden></div>
+                <div class="mt-3" data-upload-error></div>
+                <noscript><div class="alert alert-warning mt-3 mb-0">Quick deployment requires JavaScript.</div></noscript>
+            </section>
+
+            <section class="panel wizard-step" data-step="2" hidden>
+                <h2 class="h6">2 · Which Tomcat instances?</h2>
+                <p class="small text-secondary">Select instances of one environment. The file name decides the context path; it defaults to the name this application was last deployed as.
+                    Production is not offered here: use the <a th:href="@{/deployments/new}">deployment wizard</a>, which asks for release notes and a typed confirmation.</p>
+                <div class="table-responsive"><table class="table align-middle mb-0 target-table">
+                    <thead><tr><th style="width:36px"></th><th>Instance</th><th>Environment</th><th>Connectivity</th><th style="min-width:200px">Deploy as</th><th>Context</th></tr></thead>
+                    <tbody data-targets></tbody>
+                </table></div>
+                <div class="form-check mt-3" data-parallel-row hidden>
+                    <input class="form-check-input" type="checkbox" id="q-parallel" data-parallel>
+                    <label class="form-check-label small" for="q-parallel">Deploy to all selected instances at the same time (otherwise one after another, each verified healthy first)</label>
+                </div>
+            </section>
+
+            <section class="panel wizard-step" data-step="3" hidden>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                    <h2 class="h6 mb-0">3 · Connectivity and preflight</h2>
+                    <button class="btn btn-outline-primary btn-sm" type="button" data-run-check>Check again</button>
+                </div>
+                <div data-preview><p class="small text-secondary mb-0">Tests SSH or Tomcat Manager access, inspects each server and checks compatibility. Nothing is changed yet.</p></div>
+            </section>
+
+            <section class="panel wizard-step" data-step="4" hidden>
+                <h2 class="h6">4 · Deploy</h2>
+                <div class="confirm-box" data-confirm-box>
+                    <div class="form-check mb-2" data-ack-row hidden>
+                        <input class="form-check-input" type="checkbox" id="q-ack" data-ack>
+                        <label class="form-check-label" for="q-ack" data-ack-label>I have reviewed the warnings above and want to continue.</label>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <button class="btn btn-primary" type="button" data-deploy disabled><i class="bx bx-rocket me-1"></i>Deploy</button>
+                        <span class="small text-secondary" data-deploy-hint></span>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <aside class="panel wizard-summary">
+            <h2 class="h6">Summary</h2>
+            <dl class="small mb-3">
+                <dt>Release</dt><dd data-sum-release>—</dd>
+                <dt>Environment</dt><dd data-sum-env>—</dd>
+                <dt>Targets</dt><dd data-sum-targets>—</dd>
+                <dt>Rollout</dt><dd data-sum-strategy>One at a time</dd>
+            </dl>
+            <button class="btn btn-primary w-100" type="button" data-to-check disabled>Check connectivity →</button>
+            <p class="small text-secondary mt-2 mb-0" data-sum-hint>Upload a WAR to start.</p>
+        </aside>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/quick-deployment.js}"></script>
+</body>
+</html>

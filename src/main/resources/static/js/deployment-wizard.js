@@ -231,7 +231,8 @@
             el("td", { class: "small" }, el("span", { class: "badge " + ({ COMPATIBLE: "text-bg-success", UNKNOWN: "text-bg-warning", INCOMPATIBLE: "text-bg-danger" }[r.compatibility]), text: r.compatibility.toLowerCase() })),
             el("td", { class: "small", text: r.backup }),
             el("td", { class: "small" }, list(r.blockers, "blockers"), list(r.warnings, "warnings"), !r.blockers.length && !r.warnings.length ? el("span", { class: "text-success", text: "✓ ready" }) : null)));
-        $("[data-preview]").replaceChildren(banner, header, list(p.blockers, "blockers"), list(p.warnings, "warnings"),
+        // list() returns null when empty, which replaceChildren would print as "null"
+        $("[data-preview]").replaceChildren(banner, header, list(p.blockers, "blockers") || "", list(p.warnings, "warnings") || "",
             el("div", { class: "table-responsive" }, el("table", { class: "table table-sm align-middle preview-table mb-0" },
                 el("thead", {}, el("tr", {}, ["Target", "Method", "Deploy as", "Current → new", "Connectivity", "Compatibility", "Backup", "Checks"].map((h) => el("th", { text: h })))),
                 el("tbody", {}, rows))));

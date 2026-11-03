@@ -62,6 +62,16 @@ public class DeploymentApiController {
 
     public record StatusDto(RunDto run, List<TargetDto> targets, List<LogDto> logs, long lastLogId) { }
 
+    /** Log events meaning a timeline step was switched off for the instance, and that step (1 backup … 4 health). */
+    private static final Map<String, Integer> STEP_OFF_EVENTS = Map.of("BACKUP_SKIPPED", 1, "HEALTH_CHECK_SKIPPED", 4);
+    /** Target states that begin a timeline step; logged as TARGET_&lt;state&gt; when entered. */
+    private static final List<TargetState> STEP_STATES = List.of(TargetState.BACKUP_IN_PROGRESS, TargetState.BACKUP_COMPLETED,
+            TargetState.TRANSFER_IN_PROGRESS, TargetState.DEPLOYING, TargetState.HEALTH_CHECKING);
+    private static final List<String> TIMELINE_EVENTS = java.util.stream.Stream.concat(STEP_OFF_EVENTS.keySet().stream(),
+            STEP_STATES.stream().map(s -> "TARGET_" + s.name())).toList();
+    /** Outcomes that stopped a target part-way; the timeline marks the step it was in. */
+    private static final java.util.Set<TargetState> STOPPED_STATES = java.util.EnumSet.of(TargetState.FAILED, TargetState.ROLLBACK_REQUIRED, TargetState.UNKNOWN);
+
     /** Status for polling; returns only log entries newer than {@code afterLogId}. */
     @GetMapping("/{id}")
     public StatusDto status(@PathVariable long id, @RequestParam(defaultValue = "0") long afterLogId) {
@@ -75,11 +85,21 @@ public class DeploymentApiController {
                 .collect(Collectors.toMap(DeploymentRun::getRollbackOfTargetId, Function.identity(), (newer, older) -> newer));
         List<LogDto> newLogs = logs.findByRunIdAndIdGreaterThanOrderByIdAsc(id, afterLogId).stream().map(LogDto::from).toList();
         long last = newLogs.isEmpty() ? afterLogId : newLogs.get(newLogs.size() - 1).id();
+        // From the target's recorded events (later setting changes do not rewrite history): steps switched off on the
+        // instance, and the last step it entered, which is where a failed target stopped.
+        Map<Long, List<Integer>> stepsOff = new java.util.HashMap<>();
+        Map<Long, Integer> lastStep = new java.util.HashMap<>();
+        for (DeploymentLog l : logs.findByRunIdAndEventInOrderByIdAsc(id, TIMELINE_EVENTS)) {
+            if (l.getTargetId() == null) continue;
+            Integer off = STEP_OFF_EVENTS.get(l.getEvent());
+            if (off != null) stepsOff.computeIfAbsent(l.getTargetId(), k -> new java.util.ArrayList<>()).add(off);
+            else lastStep.put(l.getTargetId(), TargetDto.step(TargetState.valueOf(l.getEvent().substring("TARGET_".length()))));
+        }
         return new StatusDto(dto(run), list.stream().map(t -> {
             DeploymentRun rollback = latestRollback.get(t.getId());
             boolean candidate = !run.isRollback() && !run.getState().isActive() && rollbacks.isRollbackCandidate(t)
                     && (rollback == null || rollback.getState().isTerminal());
-            return TargetDto.from(t, backupByTarget.get(t.getId()), candidate, rollback);
+            return TargetDto.from(t, backupByTarget.get(t.getId()), candidate, rollback, stepsOff.getOrDefault(t.getId(), List.of()), lastStep.get(t.getId()));
         }).toList(), newLogs, last);
     }
 
@@ -139,15 +159,19 @@ public class DeploymentApiController {
     public record TargetDto(Long id, Long instanceId, String instanceName, String hostName, String hostname, String method, String filename,
                             String contextPath, TargetState state, String stateLabel, String badgeClass, Instant startedAt, Instant finishedAt,
                             Long bytesTransferred, String message, String backup, String reconciledBy, String reconcileNote, int step,
-                            boolean rollbackAvailable, Long rolledBackByRunId, Long latestRollbackRunId, String latestRollbackState) {
-        static TargetDto from(DeploymentTarget t, DeploymentBackup b, boolean rollbackAvailable, DeploymentRun latestRollback) {
+                            boolean rollbackAvailable, Long rolledBackByRunId, Long latestRollbackRunId, String latestRollbackState,
+                            List<Integer> stepsOff) {
+        /** {@code lastStep}: the last timeline step the target entered (from its log), or null. */
+        static TargetDto from(DeploymentTarget t, DeploymentBackup b, boolean rollbackAvailable, DeploymentRun latestRollback, List<Integer> stepsOff,
+                              Integer lastStep) {
+            int step = STOPPED_STATES.contains(t.getState()) && lastStep != null ? lastStep : step(t.getState());
             String backup = b == null ? null : b.isDeleted() ? "Deleted (" + b.getDeleteReason() + ")" : b.getSource() == DeploymentBackup.Source.REMOTE_WAR
                     ? "Downloaded current WAR (" + RemoteInspector.humanSize(b.getSizeBytes()) + ")" : "Previous library release";
             return new TargetDto(t.getId(), t.getInstanceId(), t.getInstanceName(), t.getHostName(), t.getHostname(),
                     t.getDeploymentMethod().name(), t.getTargetFilename(), t.getContextPath(), t.getState(), t.getState().label(),
                     t.getState().badgeClass(), t.getStartedAt(), t.getFinishedAt(), t.getBytesTransferred(), t.getMessage(), backup,
-                    t.getReconciledBy(), t.getReconcileNote(), step(t.getState()), rollbackAvailable, t.getRolledBackByRunId(),
-                    latestRollback == null ? null : latestRollback.getId(), latestRollback == null ? null : latestRollback.getState().label());
+                    t.getReconciledBy(), t.getReconcileNote(), step, rollbackAvailable, t.getRolledBackByRunId(),
+                    latestRollback == null ? null : latestRollback.getId(), latestRollback == null ? null : latestRollback.getState().label(), stepsOff);
         }
         /** Progress step 0..5 for the per-target timeline (backup, upload, deploy, health, done). */
         static int step(TargetState s) {

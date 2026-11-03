@@ -273,6 +273,7 @@ tr.row-link { cursor: pointer; }
 .timeline li.current { border-top-color: var(--primary-color); color: var(--primary-color); font-weight: 700; }
 .timeline li.failed { border-top-color: var(--bad); color: var(--bad); font-weight: 700; }
 .timeline li.skipped { border-top-style: dashed; }
+.timeline li.off { border-top-style: dashed; border-top-color: rgb(var(--warning-rgb)); color: var(--warn-text); }
 .target-message { background: var(--soft); border-radius: 6px; padding: 6px 10px; }
 .log-view { max-height: 420px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; padding: 8px 0; background: #1d2844; color: #d6dbea; border-radius: 0 0 .5rem .5rem; }
 .log-line { display: grid; grid-template-columns: 80px 140px minmax(0, 1fr); gap: 10px; padding: 3px 16px; }
@@ -309,7 +310,7 @@ tr.row-link { cursor: pointer; }
 .auth-brand-mark img { height: 2.75rem; }
 .auth-brand-mark span { display: block; }
 .auth-brand-mark .name { font-weight: 700; font-size: 1.15rem; }
-.auth-brand-mark .tag { font-size: .8rem; opacity: .75; }
+.auth-brand-mark .tag { opacity: .75; }
 .auth-card-wide { max-width: 640px; }
 
 /* ---------- Notifications ---------- */

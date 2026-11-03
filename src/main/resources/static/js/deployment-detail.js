@@ -46,10 +46,18 @@
             summary.hidden = false;
             summary.className = "alert small " + ({ SUCCEEDED: "alert-success", FAILED: "alert-danger", PARTIALLY_SUCCEEDED: "alert-warning", UNKNOWN: "alert-warning", CANCELLED: "alert-secondary" }[run.state] || "alert-info");
             const needsRollback = targets.some((t) => t.state === "ROLLBACK_REQUIRED");
-            summary.replaceChildren(el("strong", { text: run.stateLabel + ". " }), run.summary,
+            const failed = targets.filter((t) => ["FAILED", "ROLLBACK_REQUIRED"].includes(t.state) && t.message);
+            // Deployments finished before the summary carried the reason: show the first failed target's message.
+            const reason = failed.length && !run.summary.includes(failed[0].message) ? failed[0].instanceName + ": " + failed[0].message : null;
+            const lines = [
+                el("strong", { text: run.stateLabel + ". " }), run.summary,
+                reason ? el("div", { class: "mt-1", text: reason }) : null,
                 run.state === "UNKNOWN" ? el("div", { class: "mt-1", text: "Some outcomes could not be established. An administrator inspects the server and reconciles each target below. No automatic retry happens." }) : null,
                 needsRollback ? el("div", { class: "mt-1", text: "A target needs a rollback: its new version is in place but unhealthy. Use “Roll back…” on that target to restore the previous version." }) : null,
-                isRollback && run.state === "SUCCEEDED" ? el("div", { class: "mt-1", text: "The previous version is restored and verified. The original deployment is marked as rolled back." }) : null);
+                failed.length && !needsRollback && !isRollback ? el("div", { class: "mt-1", text: "Check the failed target and its log below, fix the cause (for a slow-starting application, raise the instance's startup timeout), then deploy again." }) : null,
+                isRollback && run.state === "SUCCEEDED" ? el("div", { class: "mt-1", text: "The previous version is restored and verified. The original deployment is marked as rolled back." }) : null
+            ];
+            summary.replaceChildren(...lines.filter((c) => c != null)); // replaceChildren would print null as "null"
         }
     }
 
@@ -60,8 +68,11 @@
                 const failedStep = ["FAILED", "ROLLBACK_REQUIRED", "UNKNOWN", "PREFLIGHT_FAILED"].includes(t.state);
                 const timeline = el("ol", { class: "timeline" }, STEPS.map((label, i) => {
                     const n = i + 1;
-                    const cls = t.state === "SKIPPED" ? "skipped" : n < t.step || (n === 5 && ["SUCCEEDED", "ROLLED_BACK"].includes(t.state)) ? "done" : n === t.step ? (failedStep ? "failed" : "current") : "";
-                    return el("li", { class: cls }, el("span", { text: label }));
+                    const finished = ["SUCCEEDED", "ROLLED_BACK"].includes(t.state);
+                    // A step switched off on the instance (no backup / no health check) was passed without doing anything: not green.
+                    const off = (t.stepsOff || []).includes(n) && (n < t.step || finished);
+                    const cls = t.state === "SKIPPED" ? "skipped" : off ? "off" : n < t.step || (n === 5 && finished) ? "done" : n === t.step ? (failedStep ? "failed" : "current") : "";
+                    return el("li", { class: cls, title: off ? label + " is switched off for this instance" : null }, el("span", { text: off ? label + " · off" : label }));
                 }));
                 const reconcile = mayReconcile && t.state === "UNKNOWN"
                     ? el("button", { type: "button", class: "btn btn-sm btn-warning", text: "Inspect & reconcile…" }) : null;
