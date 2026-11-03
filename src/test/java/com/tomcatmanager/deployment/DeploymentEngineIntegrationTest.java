@@ -183,6 +183,11 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
         assertThat(run.getState()).isEqualTo(DeploymentState.FAILED);
         assertThat(states(run)).containsExactly(TargetState.FAILED, TargetState.SKIPPED);
         assertThat(Files.exists(serverRoot.resolve("opt/tomcat/b/webapps/good.war"))).isFalse();
+        // The timeline marks the step that failed (4 = health), not the final one; the skipped target never started.
+        assertThat(api.status(run.getId(), 0).targets()).extracting(DeploymentApiController.TargetDto::step).containsExactly(4, 0);
+        // The summary says why, not only how many.
+        assertThat(recorder.run(run.getId()).getSummary()).startsWith("0 of 2 target(s) succeeded, 1 not started. tomcat-a: ")
+                .contains("did not become healthy").doesNotContain("null");
     }
 
     @Test void unhealthyUpdateWithBackupRequiresRollbackAndPartialSuccessIsReported() {
@@ -193,6 +198,7 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
         DeploymentRun run = deploy(releaseB, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a), target(b));
         assertThat(run.getState()).isEqualTo(DeploymentState.PARTIALLY_SUCCEEDED);
         assertThat(states(run)).containsExactly(TargetState.SUCCEEDED, TargetState.ROLLBACK_REQUIRED);
+        assertThat(api.status(run.getId(), 0).targets()).extracting(DeploymentApiController.TargetDto::step).containsExactly(5, 4);
         assertThat(targets.findCurrentDeployment(b.getId(), "/flaky").orElseThrow().getRun().getRelease().getId())
                 .as("current state only advances after verification").isEqualTo(releaseA.getId());
     }
@@ -239,11 +245,16 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
         assertThat(run.getState()).isEqualTo(DeploymentState.SUCCEEDED);
         assertThat(targets.findByRunIdOrderBySequenceAsc(run.getId()).get(0).getMessage()).contains("not checked");
         assertThat(jdbc.queryForObject("select count(*) from deployment_logs where run_id = ? and event = 'HEALTH_CHECK_SKIPPED'", Long.class, run.getId())).isEqualTo(1L);
+        assertThat(api.status(run.getId(), 0).targets().get(0).stepsOff()).containsExactly(4); // the timeline shows "Health · off"
     }
+
+    @Autowired DeploymentApiController api;
 
     @Test void switchedOffBackupDeploysWithoutARollbackPointButWarnsAndLogs() throws Exception {
         TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "portal.war", Environment.DEVELOPMENT);
-        assertThat(deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a)).getState()).isEqualTo(DeploymentState.SUCCEEDED);
+        DeploymentRun first = deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
+        assertThat(first.getState()).isEqualTo(DeploymentState.SUCCEEDED);
+        assertThat(api.status(first.getId(), 0).targets().get(0).stepsOff()).isEmpty();
         a.setBackupEnabled(false);
         instances.save(a);
 
@@ -258,6 +269,7 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
         assertThat(Files.readAllBytes(serverRoot.resolve("opt/tomcat/a/webapps/portal.war"))).isEqualTo(warB);
         assertThat(backups.findByTargetId(targets.findByRunIdOrderBySequenceAsc(run.getId()).get(0).getId())).isEmpty();
         assertThat(jdbc.queryForObject("select count(*) from deployment_logs where run_id = ? and event = 'BACKUP_SKIPPED'", Long.class, run.getId())).isEqualTo(1L);
+        assertThat(api.status(run.getId(), 0).targets().get(0).stepsOff()).containsExactly(1); // the timeline shows "Backup · off"
     }
 
     @Autowired DeploymentPreflight preflight;
@@ -468,7 +480,7 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
     }
 
     @Test void deploymentsAndRollbacksAreAuditedAndNotified() {
-        jdbc.execute("TRUNCATE audit_events, notifications RESTART IDENTITY");
+        jdbc.execute("TRUNCATE audit_events, notification_reads, notifications RESTART IDENTITY");
         TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "portal.war", Environment.DEVELOPMENT);
         deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
         tomcat.unhealthy.add("/portal");

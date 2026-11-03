@@ -57,7 +57,7 @@
             </div>
 
             <div class="header-element notifications-dropdown" id="notification-bell"
-                 th:attr="data-api=@{/api/notifications},data-read-url=@{/api/notifications/read},data-page=@{/notifications}">
+                 th:attr="data-api=@{/api/notifications},data-read-url=@{/api/notifications/read},data-notifications-url=@{/api/notifications/},data-page=@{/notifications}">
                 <a href="javascript:void(0);" class="header-link dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside"
                    aria-expanded="false" aria-label="Notifications" title="Notifications">
                     <i class="bx bx-bell header-link-icon"></i>
@@ -145,8 +145,7 @@
                 <li class="slide" th:classappend="${active == 'deployments'} ? ' active'">
                     <a th:href="@{/deployments}" class="side-menu__item" th:classappend="${active == 'deployments'} ? ' active'">
                         <i class="bx bx-rocket side-menu__icon"></i><span class="side-menu__label">Deployments</span></a>
-                </li>
-                <li class="slide" th:classappend="${active == 'backups'} ? ' active'">
+                </li>                <li class="slide" th:classappend="${active == 'backups'} ? ' active'">
                     <a th:href="@{/backups}" class="side-menu__item" th:classappend="${active == 'backups'} ? ' active'">
                         <i class="bx bx-history side-menu__icon"></i><span class="side-menu__label">Backups &amp; Rollback</span></a>
                 </li>

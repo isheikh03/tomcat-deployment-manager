@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.mail.SimpleMailMessage;
@@ -14,7 +15,11 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -29,6 +34,7 @@ public class NotificationService implements DisposableBean {
 
     private final NotificationRepository notifications;
     private final NotificationReadMarkerRepository markers;
+    private final NotificationReadRepository reads;
     private final SettingsService settings;
     private final ObjectProvider<JavaMailSender> mail;
     private final TransactionTemplate tx;
@@ -38,11 +44,11 @@ public class NotificationService implements DisposableBean {
         Thread t = new Thread(r, "notification-email"); t.setDaemon(true); return t;
     });
 
-    public NotificationService(NotificationRepository notifications, NotificationReadMarkerRepository markers, SettingsService settings,
-                               ObjectProvider<JavaMailSender> mail, TransactionTemplate tx,
+    public NotificationService(NotificationRepository notifications, NotificationReadMarkerRepository markers, NotificationReadRepository reads,
+                               SettingsService settings, ObjectProvider<JavaMailSender> mail, TransactionTemplate tx,
                                @Value("${app.notifications.email-from:tomcat-deployment-manager@localhost}") String from,
                                @Value("${app.notifications.base-url:}") String baseUrl, @Value("${spring.mail.host:}") String mailHost) {
-        this.notifications = notifications; this.markers = markers; this.settings = settings; this.tx = tx;
+        this.notifications = notifications; this.markers = markers; this.reads = reads; this.settings = settings; this.tx = tx;
         // A blank host still makes Spring create a mail sender; treat it as "no SMTP configured".
         this.mail = mailHost == null || mailHost.isBlank() ? new ObjectProvider<>() {
             @Override public JavaMailSender getObject() { throw new IllegalStateException("No SMTP server configured."); }
@@ -109,7 +115,32 @@ public class NotificationService implements DisposableBean {
         }
     }
 
-    public long unreadCount(String username) { return notifications.countByIdGreaterThan(lastRead(username)); }
+    public long unreadCount(String username) {
+        long upTo = lastRead(username);
+        return Math.max(0, notifications.countByIdGreaterThan(upTo) - reads.countByUsernameAndNotificationIdGreaterThan(username, upTo));
+    }
+
+    /** Of {@code ids}, those the user has read: covered by their marker or marked read one by one. */
+    public Set<Long> readIds(String username, Collection<Long> ids) {
+        long upTo = lastRead(username);
+        Set<Long> read = new HashSet<>();
+        for (Long id : ids) if (id <= upTo) read.add(id);
+        List<Long> above = ids.stream().filter(id -> id > upTo).toList();
+        if (!above.isEmpty()) read.addAll(reads.findReadIds(username, above));
+        return read;
+    }
+
+    public void markRead(String username, long notificationId) {
+        if (!notifications.existsById(notificationId)) throw new NoSuchElementException("Notification " + notificationId + " not found.");
+        if (notificationId <= lastRead(username)) return;
+        try {
+            tx.executeWithoutResult(s -> {
+                if (!reads.existsById(new NotificationRead.Key(username, notificationId))) reads.save(new NotificationRead(username, notificationId));
+            });
+        } catch (DataIntegrityViolationException e) {
+            // marked read a moment ago from another tab
+        }
+    }
 
     public long lastRead(String username) { return markers.findById(username).map(NotificationReadMarker::getLastReadId).orElse(0L); }
 
@@ -126,6 +157,7 @@ public class NotificationService implements DisposableBean {
             NotificationReadMarker marker = markers.findById(username).orElseGet(() -> new NotificationReadMarker(username));
             marker.readUpTo(max);
             markers.save(marker);
+            reads.deleteCovered(username, marker.getLastReadId());
         });
     }
 

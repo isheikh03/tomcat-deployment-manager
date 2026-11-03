@@ -8,7 +8,7 @@ import java.time.Duration;
 /** Deployment engine settings ({@code app.deployment.*}). */
 @ConfigurationProperties("app.deployment")
 public record DeploymentProperties(
-        @DefaultValue("120") int startupTimeoutSeconds,
+        @DefaultValue("300") int startupTimeoutSeconds,
         @DefaultValue("2") int consecutiveSuccesses,
         @DefaultValue("PT5S") Duration healthInterval,
         @DefaultValue("PT10S") Duration healthRequestTimeout,

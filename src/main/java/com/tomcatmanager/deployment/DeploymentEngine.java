@@ -227,10 +227,20 @@ public class DeploymentEngine implements DisposableBean {
         if (next == DeploymentState.SUCCEEDED && !run.getState().canTransitionTo(DeploymentState.SUCCEEDED)) next = DeploymentState.PARTIALLY_SUCCEEDED;
         String summary = reason != null ? reason : succeeded + " of " + list.size() + " target(s) succeeded"
                 + (unknown > 0 ? ", " + unknown + " unknown (reconcile)" : "") + (rollback > 0 ? ", " + rollback + " need rollback" : "")
-                + (skipped > 0 ? ", " + skipped + " not started" : "") + ".";
+                + (skipped > 0 ? ", " + skipped + " not started" : "") + "." + failureReason(list);
         recorder.runState(runId, next, summary);
         try { outcomes.finished(recorder.run(runId)); }
         catch (RuntimeException e) { log.error("Could not record the outcome notification of run {}", runId, e); }
+    }
+
+    /** Why the first target failed (or needs a rollback), so the summary explains the outcome; empty when none did. */
+    static String failureReason(List<DeploymentTarget> list) {
+        List<DeploymentTarget> failed = list.stream().filter(t -> (t.getState() == TargetState.FAILED || t.getState() == TargetState.ROLLBACK_REQUIRED)
+                && t.getMessage() != null && !t.getMessage().isBlank()).toList();
+        if (failed.isEmpty()) return "";
+        String message = failed.get(0).getMessage().strip();
+        return " " + failed.get(0).getInstanceName() + ": " + message + (message.endsWith(".") ? "" : ".")
+                + (failed.size() > 1 ? " " + (failed.size() - 1) + " more target(s) failed; see below." : "");
     }
 
     private void abort(long runId, String reason) {

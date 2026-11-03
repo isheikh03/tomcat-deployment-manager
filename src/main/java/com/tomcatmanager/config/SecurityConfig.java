@@ -66,6 +66,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/hosts/*/host-key/trust").hasRole(ADMIN)
                         // Releases: upload per policy; integrity checks by operators; reading by everyone signed in.
                         .requestMatchers(HttpMethod.POST, "/api/releases").access(uploaders)
+                        // Quick Deployment uploads a release too, so it follows the same policy.
+                        .requestMatchers(HttpMethod.POST, "/api/quick-deployments/release").access(uploaders)
                         .requestMatchers(HttpMethod.POST, "/api/releases/*/verify").hasAnyRole(ADMIN, OPERATOR)
                         // Deployments: operators preview, start and cancel; only administrators inspect and reconcile unknown outcomes.
                         .requestMatchers(HttpMethod.POST, "/api/deployments/*/targets/*/reconcile", "/api/deployments/*/targets/*/inspect").hasRole(ADMIN)
@@ -78,7 +80,7 @@ public class SecurityConfig {
                         // Health: manual checks by operators (outbound requests); reading by everyone signed in.
                         .requestMatchers(HttpMethod.POST, "/api/health/instances/*/check").hasAnyRole(ADMIN, OPERATOR)
                         // Every signed-in user marks their own notifications as read.
-                        .requestMatchers(HttpMethod.POST, "/api/notifications/read").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/notifications/read", "/api/notifications/*/read").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/**").authenticated()
                         .requestMatchers("/api/**").hasRole(ADMIN)
                         // Infrastructure configuration is administrator-only.
@@ -93,6 +95,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/releases/**").hasRole(ADMIN)
                         // Deployment history is readable by everyone signed in; starting one needs an operator.
                         .requestMatchers("/deployments/new").hasAnyRole(ADMIN, OPERATOR)
+                        .requestMatchers("/deployments/quick").access(uploaders)
                         .anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").failureUrl("/login?error").permitAll().successHandler(successHandler(loginSuccess)))
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout").invalidateHttpSession(true).clearAuthentication(true).deleteCookies("JSESSIONID"))

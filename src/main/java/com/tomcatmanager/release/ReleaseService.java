@@ -15,6 +15,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.NoSuchElementException;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
@@ -60,27 +61,90 @@ public class ReleaseService {
                     throw new DuplicateReleaseException("This exact WAR (same SHA-256) is already release " + existing.getVersionLabel()
                             + " of " + application.getName() + ".", existing.getId());
                 });
-                storage.discard(staged); // identical bytes already stored: reuse them
-            } else {
-                WarInspection inspection = inspector.inspect(staged.path());
-                String path = storage.commit(staged);
-                artifact = saveArtifact(new StoredArtifact(staged.sha256(), staged.size(), path, inspection));
             }
-            StoredArtifact finalArtifact = artifact;
-            Release saved;
-            try {
-                saved = tx.execute(status -> releases.save(new Release(application, finalArtifact, label, filename, notes, actor)));
-            } catch (DataIntegrityViolationException e) {
-                throw new IllegalArgumentException("Version " + label + " or this exact WAR was just added for " + application.getName() + " by someone else.");
-            }
-            log.info("Release {} ({} {}) uploaded by {}: sha256={} size={}", saved.getId(), application.getName(), label, actor, finalArtifact.getSha256(), finalArtifact.getSizeBytes());
-            audit.record(actor, "RELEASE_UPLOADED", "RELEASE", saved.getId(), com.tomcatmanager.audit.AuditEvent.Outcome.SUCCESS,
-                    "Uploaded " + application.getName() + " " + label + " (" + filename + ", " + ArtifactStorage.humanSize(finalArtifact.getSizeBytes())
-                            + ", SHA-256 " + finalArtifact.getSha256() + ").");
-            return releases.findById(saved.getId()).orElseThrow();
+            return store(application, staged, artifact, null, label, filename, notes, actor, "");
         } finally {
             storage.discard(staged); // no-op when the file was committed or already discarded
         }
+    }
+
+    /** A Quick Deployment upload: the release to deploy, and whether it already existed (identical WAR). */
+    public record QuickUpload(Release release, boolean reused) { }
+
+    /**
+     * Quick Deployment upload. The WAR is validated before {@code application} is resolved, so an
+     * invalid file never creates an application. If the identical WAR is already a release of the
+     * application, that release is reused. Without a version label one is derived (see
+     * {@link QuickReleaseNaming}) and made unique with a -2, -3, … suffix; a label typed by the user must be new.
+     */
+    public QuickUpload uploadForQuickDeployment(Supplier<ManagedApplication> application, String versionLabel, String originalFilename,
+                                                InputStream content, String actor) throws IOException, InvalidWarException {
+        String filename = sanitizeFilename(originalFilename);
+        String requested = versionLabel == null || versionLabel.isBlank() ? null : validateLabel(versionLabel);
+        ArtifactStorage.StagedFile staged = storage.stage(content);
+        try {
+            StoredArtifact artifact = artifacts.findBySha256(staged.sha256()).orElse(null);
+            WarInspection inspection = artifact == null ? inspector.inspect(staged.path()) : null;
+            ManagedApplication app = application.get();
+            if (artifact != null) {
+                var existing = releases.findByApplicationIdAndArtifactId(app.getId(), artifact.getId());
+                if (existing.isPresent()) {
+                    Release r = existing.get();
+                    if (r.isArchived()) throw new IllegalArgumentException("This exact WAR is release " + r.getVersionLabel() + " of " + app.getName()
+                            + ", which is archived. Restore it in the release library first.");
+                    log.info("Quick Deployment by {} reuses release {} ({} {}): identical WAR", actor, r.getId(), app.getName(), r.getVersionLabel());
+                    return new QuickUpload(releases.findById(r.getId()).orElseThrow(), true);
+                }
+            }
+            String label;
+            if (requested != null) {
+                if (releases.existsByApplicationIdAndVersionLabelIgnoreCase(app.getId(), requested))
+                    throw new IllegalArgumentException("Version " + requested + " already exists for " + app.getName() + " with different content. Use another version, or leave it empty to number it automatically.");
+                label = requested;
+            } else {
+                label = uniqueLabel(app.getId(), QuickReleaseNaming.versionLabel(filename, staged.path()));
+            }
+            return new QuickUpload(store(app, staged, artifact, inspection, label, filename, null, actor, " via Quick Deployment"), false);
+        } finally {
+            storage.discard(staged);
+        }
+    }
+
+    private String uniqueLabel(long applicationId, String base) {
+        String trimmed = base.length() > 90 ? base.substring(0, 90) : base;
+        if (!releases.existsByApplicationIdAndVersionLabelIgnoreCase(applicationId, trimmed)) return trimmed;
+        for (int n = 2; n < 1000; n++) {
+            String candidate = trimmed + "-" + n;
+            if (!releases.existsByApplicationIdAndVersionLabelIgnoreCase(applicationId, candidate)) return candidate;
+        }
+        throw new IllegalArgumentException("Could not find a free version label for " + base + ". Enter a version label.");
+    }
+
+    /**
+     * Stores staged bytes (or reuses {@code artifact} when identical bytes are already stored) and
+     * records the release. {@code inspection} may be null; the WAR is then inspected here.
+     */
+    private Release store(ManagedApplication application, ArtifactStorage.StagedFile staged, StoredArtifact artifact, WarInspection inspection,
+                          String label, String filename, String notes, String actor, String via) throws IOException, InvalidWarException {
+        if (artifact != null) {
+            storage.discard(staged); // identical bytes already stored: reuse them
+        } else {
+            WarInspection checked = inspection != null ? inspection : inspector.inspect(staged.path());
+            String path = storage.commit(staged);
+            artifact = saveArtifact(new StoredArtifact(staged.sha256(), staged.size(), path, checked));
+        }
+        StoredArtifact finalArtifact = artifact;
+        Release saved;
+        try {
+            saved = tx.execute(status -> releases.save(new Release(application, finalArtifact, label, filename, notes, actor)));
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("Version " + label + " or this exact WAR was just added for " + application.getName() + " by someone else.");
+        }
+        log.info("Release {} ({} {}) uploaded by {}{}: sha256={} size={}", saved.getId(), application.getName(), label, actor, via, finalArtifact.getSha256(), finalArtifact.getSizeBytes());
+        audit.record(actor, "RELEASE_UPLOADED", "RELEASE", saved.getId(), com.tomcatmanager.audit.AuditEvent.Outcome.SUCCESS,
+                "Uploaded " + application.getName() + " " + label + via + " (" + filename + ", " + ArtifactStorage.humanSize(finalArtifact.getSizeBytes())
+                        + ", SHA-256 " + finalArtifact.getSha256() + ").");
+        return releases.findById(saved.getId()).orElseThrow();
     }
 
     private StoredArtifact saveArtifact(StoredArtifact candidate) {

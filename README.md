@@ -196,7 +196,7 @@ database before it starts:
 
 **Health verification:** the instance health URL (may contain `{context}`, e.g.
 `http://host:8080{context}/health`) must return an accepted response `DEPLOYMENT_CONSECUTIVE_SUCCESSES`
-times in a row (default 2) within `DEPLOYMENT_STARTUP_TIMEOUT` seconds (default 120); failures during
+times in a row (default 2) within `DEPLOYMENT_STARTUP_TIMEOUT` seconds (default 300); failures during
 startup are retried until the timeout. Redirects are not followed. Only then is the target
 **Succeeded** and the instance's *current release* updated. Each instance can override this under
 *Health policy* on its form: accepted status codes (e.g. `200`, `200,204`, default `200-299`), text the
@@ -573,7 +573,7 @@ connect is not fully prevented.
 | `APP_TIME_ZONE` | Display time zone (timestamps are stored in UTC) |
 | `CONNECTION_*`, `TLS_*` | See connectivity sections above |
 | `DEPLOYMENT_BACKUP_DIR` | Backups of replaced WARs (default `./var/backups`); private, backed up, outside the app directory in production |
-| `DEPLOYMENT_STARTUP_TIMEOUT`, `DEPLOYMENT_CONSECUTIVE_SUCCESSES` | Health verification after deployment (default 120 s, 2) |
+| `DEPLOYMENT_STARTUP_TIMEOUT`, `DEPLOYMENT_CONSECUTIVE_SUCCESSES` | Health verification after deployment (default 300 s, 2) |
 | `DEPLOYMENT_MAX_CONCURRENT`, `DEPLOYMENT_MAX_PARALLEL_TARGETS` | Concurrent deployments (default 2) and targets in parallel mode (default 4) |
 | `DEPLOYMENT_BACKUP_RETENTION` | Server backups kept per instance and context (default 10; `0` keeps all). The current rollback point is never pruned |
 | `HEALTH_MONITORING_ENABLED`, `HEALTH_MONITOR_INTERVAL` | Periodic application health monitoring (default on, every `PT5M`) |

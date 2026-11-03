@@ -205,7 +205,7 @@
                                         <input class="form-control" th:field="*{healthExpectedText}" th:errorclass="is-invalid" maxlength="200" placeholder="e.g. UP">
                                         <div class="invalid-feedback" th:errors="*{healthExpectedText}"></div></div>
                                     <div class="col-sm-6"><label class="form-label" for="startupTimeoutSeconds">Startup timeout (s)</label>
-                                        <input type="number" class="form-control" th:field="*{startupTimeoutSeconds}" th:errorclass="is-invalid" min="10" max="1800" placeholder="default (120)">
+                                        <input type="number" class="form-control" th:field="*{startupTimeoutSeconds}" th:errorclass="is-invalid" min="10" max="1800" placeholder="default (300)">
                                         <div class="invalid-feedback" th:errors="*{startupTimeoutSeconds}"></div>
                                         <div class="form-text">How long to wait for the application to become healthy.</div></div>
                                     <div class="col-sm-6"><label class="form-label" for="healthConsecutiveSuccesses">Consecutive successes</label>

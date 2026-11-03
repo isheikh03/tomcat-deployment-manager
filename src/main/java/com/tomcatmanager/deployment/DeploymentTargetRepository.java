@@ -47,5 +47,12 @@ public interface DeploymentTargetRepository extends JpaRepository<DeploymentTarg
             order by t.id""")
     List<DeploymentTarget> findLaterTargets(Long instanceId, String contextPath, Long afterId);
 
+    /** The WAR file name an application was last successfully deployed as on an instance (Quick Deployment default). */
+    @Query("""
+            select t.targetFilename from DeploymentTarget t join t.run r
+            where t.instanceId = :instanceId and r.application.id = :applicationId and t.state = com.tomcatmanager.deployment.TargetState.SUCCEEDED
+            order by t.finishedAt desc limit 1""")
+    Optional<String> findLastFilename(Long instanceId, Long applicationId);
+
     long countByState(TargetState state);
 }

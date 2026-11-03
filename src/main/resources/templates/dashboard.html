@@ -14,6 +14,7 @@
         </div>
         <div class="d-flex gap-2 mt-3 mt-md-0" sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')">
             <a class="btn btn-outline-secondary btn-wave" th:href="@{/releases/upload}"><i class="bx bx-upload me-1"></i>Upload WAR</a>
+            <a class="btn btn-outline-primary btn-wave" th:href="@{/deployments/quick}"><i class="bx bx-bolt-circle me-1"></i>Quick deployment</a>
             <a class="btn btn-primary btn-wave" th:href="@{/deployments/new}"><i class="bx bx-rocket me-1"></i>New deployment</a>
         </div>
     </div>
@@ -300,6 +301,7 @@
                     <a sec:authorize="hasRole('ADMIN')" class="quick-action" th:href="@{/applications/new}"><span class="action-icon"><i class="bx bx-grid-alt"></i></span><span><strong>Register application</strong><small>Name and compatibility requirements</small></span><i class="ri-arrow-right-s-line ms-auto fs-18 text-muted"></i></a>
                     <a class="quick-action" th:href="@{/infrastructure}"><span class="action-icon"><i class="bx bx-server"></i></span><span><strong>Infrastructure &amp; connectivity</strong><small>Hosts, Tomcat instances and connection tests</small></span><i class="ri-arrow-right-s-line ms-auto fs-18 text-muted"></i></a>
                     <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="quick-action" th:href="@{/deployments/new}"><span class="action-icon"><i class="bx bx-rocket"></i></span><span><strong>New deployment</strong><small>Preview, preflight and deploy a release</small></span><i class="ri-arrow-right-s-line ms-auto fs-18 text-muted"></i></a>
+                    <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="quick-action" th:href="@{/deployments/quick}"><span class="action-icon"><i class="bx bx-bolt-circle"></i></span><span><strong>Quick deployment</strong><small>Upload a WAR and deploy it in one page</small></span><i class="ri-arrow-right-s-line ms-auto fs-18 text-muted"></i></a>
                 </div>
             </div>
         </div>

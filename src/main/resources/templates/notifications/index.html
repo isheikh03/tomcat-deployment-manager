@@ -31,7 +31,7 @@
 
     <section class="panel p-0" th:if="${notifications.totalElements > 0}">
         <ul class="list-unstyled mb-0 notification-list">
-            <li th:each="n : ${notifications.content}" th:classappend="${n.id > lastRead} ? ' unread'">
+            <li th:each="n : ${notifications.content}" th:with="unread=${!readIds.contains(n.id)}" th:classappend="${unread} ? ' unread'">
                 <span class="badge" th:classappend="${n.level.badgeClass()}" th:text="${n.level}"></span>
                 <div class="flex-grow-1 min-w-0">
                     <div class="fw-semibold"><a th:if="${n.link != null}" th:href="@{${n.link}}" th:text="${n.title}"></a><span th:unless="${n.link != null}" th:text="${n.title}"></span></div>
@@ -42,6 +42,9 @@
                         <span th:if="${n.emailStatus.name() == 'FAILED'}" class="text-danger" th:title="${n.emailError}"> · email failed</span>
                     </div>
                 </div>
+                <button th:if="${unread}" type="button" class="btn btn-sm btn-light border text-nowrap align-self-start"
+                        th:attr="data-mark-one=@{/api/notifications/{id}/read(id=${n.id})},data-mark-one-id=${n.id}" title="Mark this notification as read">
+                    <i class="bx bx-check me-1"></i>Mark as read</button>
             </li>
         </ul>
         <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top small" th:if="${notifications.totalPages > 1}">
