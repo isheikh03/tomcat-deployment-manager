@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: tomcat_manager
       POSTGRES_USER: tomcat_manager
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+      POSTGRES_PASSWORD: ${TDL_DB_PASSWORD:-change-me}
     ports:
       - "5432:5432"
     volumes:

@@ -70,8 +70,8 @@ public class SettingsController {
     private Map<String, Map<String, String>> effective() {
         Map<String, Map<String, String>> groups = new LinkedHashMap<>();
         Map<String, String> storage = new LinkedHashMap<>();
-        storage.put("Release storage (ARTIFACT_STORAGE)", release.storageDir().toAbsolutePath().normalize().toString());
-        storage.put("Backup directory (DEPLOYMENT_BACKUP_DIR)", deployment.backupDir().toAbsolutePath().normalize().toString());
+        storage.put("Release storage (TDL_ARTIFACT_STORAGE)", release.storageDir().toAbsolutePath().normalize().toString());
+        storage.put("Backup directory (TDL_DEPLOYMENT_BACKUP_DIR)", deployment.backupDir().toAbsolutePath().normalize().toString());
         storage.put("Maximum upload size", release.maxUploadSize().toMegabytes() + " MB");
         groups.put("Storage", storage);
         Map<String, String> deploy = new LinkedHashMap<>();

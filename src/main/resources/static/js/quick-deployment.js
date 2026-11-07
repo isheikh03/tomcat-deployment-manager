@@ -143,7 +143,7 @@
                 el("strong", { text: release.applicationName + " " + release.versionLabel }),
                 " · " + file.name + " · " + release.size + " · SHA-256 ", el("code", { text: release.sha256.slice(0, 12) + "…" }),
                 notes.length ? el("div", { class: "text-secondary", text: notes.join(" · ") }) : null),
-            el("a", { class: "btn btn-light border btn-sm", href: "/releases/" + release.releaseId, target: "_blank", rel: "noopener", text: "Release details" }),
+            el("a", { class: "btn btn-light border btn-sm", href: root.dataset.baseUrl + "releases/" + release.releaseId, target: "_blank", rel: "noopener", text: "Release details" }),
             change));
         $("[data-upload-result]").hidden = false;
         // Default file names for this application, keeping any name already edited.
@@ -309,7 +309,7 @@
             const run = await apiFetch(root.dataset.submitUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
                 requestId: root.dataset.requestId, deployment: requestBody(), acknowledgeWarnings: $("[data-ack]").checked, confirmation: null
             }) });
-            window.location.href = "/deployments/" + run.id;
+            window.location.href = root.dataset.baseUrl + "deployments/" + run.id;
         } catch (e) {
             button.replaceChildren(el("i", { class: "bx bx-rocket me-1" }), "Deploy");
             button.disabled = false;

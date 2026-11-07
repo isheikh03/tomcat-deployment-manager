@@ -61,7 +61,7 @@ public class HostService {
         }
 
         if (newSecretProvided && !encryption.isConfigured())
-            errors.reject("encryption", "APP_ENCRYPTION_KEY is not configured, so credentials cannot be stored.");
+            errors.reject("encryption", "TDL_APP_ENCRYPTION_KEY is not configured, so credentials cannot be stored.");
 
         if (form.getSshAuthMethod() == ManagedHost.SshAuthMethod.PRIVATE_KEY) {
             if (hasText(form.getSshPassword()))

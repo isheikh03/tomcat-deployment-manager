@@ -81,7 +81,7 @@ public class InstanceService {
         if (newSecret && f.isClearManagerSecret())
             errors.rejectValue("managerSecret", "conflict", "Either remove the stored password or provide a new one, not both.");
         if (f.getManagerSecret() != null && !f.getManagerSecret().isBlank() && !encryption.isConfigured())
-            errors.reject("encryption", "APP_ENCRYPTION_KEY is not configured, so credentials cannot be stored.");
+            errors.reject("encryption", "TDL_APP_ENCRYPTION_KEY is not configured, so credentials cannot be stored.");
 
         if (f.getDeploymentMethod() == TomcatInstance.DeploymentMethod.TOMCAT_MANAGER) {
             if (f.getManagerUsername() == null || f.getManagerUsername().isBlank())

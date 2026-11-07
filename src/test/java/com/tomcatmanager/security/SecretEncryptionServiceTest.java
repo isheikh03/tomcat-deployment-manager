@@ -29,7 +29,7 @@ class SecretEncryptionServiceTest {
     @Test void wrongKeyFails() {
         String ciphertext = new SecretEncryptionService(randomKey()).encrypt("value");
         assertThatThrownBy(() -> new SecretEncryptionService(randomKey()).decrypt(ciphertext))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("wrong APP_ENCRYPTION_KEY or tampered");
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("wrong TDL_APP_ENCRYPTION_KEY or tampered");
     }
 
     @Test void alteredCiphertextFails() {

@@ -64,7 +64,7 @@ Network I/O never runs inside a database transaction.
    CREATE DATABASE tomcat_manager OWNER tomcat_manager;
    ```
 2. **Configuration.** Copy `.env.example` to `.env` (gitignored; loaded automatically via
-   `spring.config.import`) and fill in `DB_*` and `APP_ENCRYPTION_KEY`. Environment variables of the
+   `spring.config.import`) and fill in `TDL_DB_*` and `TDL_APP_ENCRYPTION_KEY`. Environment variables of the
    same name also work and take precedence.
 3. **Encryption key** (Base64 of 32 random bytes):
    ```bash
@@ -187,10 +187,10 @@ database before it starts:
 
 | Method | Steps |
 |---|---|
-| SSH / SFTP | inspect directory and free space → **backup**: download the current WAR to `DEPLOYMENT_BACKUP_DIR` (read-only, SHA-256 recorded) → upload to a hidden temporary file `.<name>.tdm-<id>.part` (Tomcat ignores it) → re-read it and compare the SHA-256 with the release → atomic rename over `<name>.war` (OpenSSH `posix-rename`) → Tomcat auto-deploys → health check |
+| SSH / SFTP | inspect directory and free space → **backup**: download the current WAR to `TDL_DEPLOYMENT_BACKUP_DIR` (read-only, SHA-256 recorded) → upload to a hidden temporary file `.<name>.tdm-<id>.part` (Tomcat ignores it) → re-read it and compare the SHA-256 with the release → atomic rename over `<name>.war` (OpenSSH `posix-rename`) → Tomcat auto-deploys → health check |
 | Tomcat Manager | `list` → **backup reference**: the previously deployed library release → stream the WAR to `/deploy?path=<context>&update=true` (`version` for `name##v.war`) → check the response text and that `list` shows the context `running` → health check |
 
-**Backup per instance:** on the Tomcat instance form, *Back up the current application before replacing it* is on by default. Switch it off (e.g. for large WARs on test servers) to skip the backup step: nothing is downloaded to `DEPLOYMENT_BACKUP_DIR`, no rollback point is recorded (a failed health check ends as `FAILED`, not `ROLLBACK_REQUIRED`), the preflight shows *Backup: Off for this instance* with a warning that must be acknowledged, and the log records `BACKUP_SKIPPED`.
+**Backup per instance:** on the Tomcat instance form, *Back up the current application before replacing it* is on by default. Switch it off (e.g. for large WARs on test servers) to skip the backup step: nothing is downloaded to `TDL_DEPLOYMENT_BACKUP_DIR`, no rollback point is recorded (a failed health check ends as `FAILED`, not `ROLLBACK_REQUIRED`), the preflight shows *Backup: Off for this instance* with a warning that must be acknowledged, and the log records `BACKUP_SKIPPED`.
 
 **Health check per instance:** on the Tomcat instance form, *Verify application health after each deployment* is on by default. Switch it off when the application has no health endpoint: the health URL and HTTP port then become optional, deployments finish as soon as the WAR is in place (for Tomcat Manager, once Tomcat reports the context `running`), the preflight shows a warning that must be acknowledged, and the log records `HEALTH_CHECK_SKIPPED`.
 
@@ -365,19 +365,25 @@ only once (enforced by the database and checked with a clear message).
 
 ## Production deployment considerations
 
-- Run behind HTTPS (reverse proxy or Tomcat/Spring TLS) and set `SESSION_COOKIE_SECURE=true`. Keep
+- Run behind HTTPS (reverse proxy or Tomcat/Spring TLS) and set `TDL_SESSION_COOKIE_SECURE=true`. Only set it when
+  browsers reach the app over HTTPS: on plain HTTP they discard the session cookie and sign-in cannot work. Keep
   the application on an internal network; it holds credentials for your servers.
-- Use a dedicated PostgreSQL account that owns the schema; back up the database, `ARTIFACT_STORAGE`
-  and `DEPLOYMENT_BACKUP_DIR` together, and `APP_ENCRYPTION_KEY` separately.
-- Provide `APP_ENCRYPTION_KEY`, database and SMTP passwords through environment variables or a
+- Use a dedicated PostgreSQL account that owns the schema; back up the database, `TDL_ARTIFACT_STORAGE`
+  and `TDL_DEPLOYMENT_BACKUP_DIR` together, and `TDL_APP_ENCRYPTION_KEY` separately.
+- Provide `TDL_APP_ENCRYPTION_KEY`, database and SMTP passwords through environment variables or a
   secret manager, never in files in Git. Do not set `APP_DEV_USERS`.
 - Provision the first administrator with `APP_BOOTSTRAP_ADMIN_*` or the setup token, then create
   personal accounts for every user; do not share accounts.
 - Restrict outbound targets with `CONNECTION_ALLOWED_CIDRS` / `CONNECTION_DENIED_CIDRS` where possible.
 - Single application instance (V1 design): run one node; PostgreSQL holds all operation state, so a
   restart is safe (interrupted deployments are recovered or marked for reconciliation).
-- Build: `./mvnw clean package` produces `target/tomcat-deployment-manager-*.jar`; run with
-  `java -jar` under a dedicated service account (e.g. a systemd unit) with the environment set.
+- Build: `./mvnw clean package` produces `target/tomcat-deployment-manager.war`. Deploy it to
+  **Apache Tomcat 11** on Java 17+ by copying it into `webapps/`; older Tomcat versions cannot run it
+  (Spring Boot 4 needs Servlet 6.1). The file name sets the context path (`ROOT.war` serves it at `/`).
+  Tomcat does not read `.env` from the project, so set the environment for the Tomcat service
+  (for example in `bin/setenv.sh`), including absolute `TDL_ARTIFACT_STORAGE` and `TDL_DEPLOYMENT_BACKUP_DIR`.
+  Copy the file rather than using the Manager web page, whose default upload limit is 50 MB.
+  The WAR also runs on its own with `java -jar` under a dedicated service account (e.g. a systemd unit).
 
 ## Applications and releases (Milestone 4)
 
@@ -391,7 +397,7 @@ choose the application, drop the `.war` file, confirm the version (suggested fro
 `customer-portal-2.4.1.war` → `2.4.1`) and add release notes. The browser checks type and size
 first; the upload shows progress and can be cancelled. On the server the file is:
 
-1. streamed to `<ARTIFACT_STORAGE>/tmp` while its **SHA-256** is computed (never held in memory);
+1. streamed to `<TDL_ARTIFACT_STORAGE>/tmp` while its **SHA-256** is computed (never held in memory);
 2. **validated** as a WAR: a readable ZIP with `WEB-INF/` and no unsafe entry paths (`..`,
    absolute, drive letters), so files that are not WARs or have path-traversal entries are rejected;
 3. **inspected**: the highest class-file level in `WEB-INF/classes` gives the Java version, and the
@@ -532,9 +538,9 @@ connect is not fully prevented.
   with a fresh 96-bit nonce per value, stored as `v1:` + Base64. They are write-only in forms: never
   rendered, never returned by the API, and redacted from diagnostics and logs. Blank fields keep the
   stored value; explicit "remove" checkboxes delete them; changes are logged without values.
-- **Key management:** back up `APP_ENCRYPTION_KEY` with your database backups but store it
+- **Key management:** back up `TDL_APP_ENCRYPTION_KEY` with your database backups but store it
   separately (e.g. a password manager or secret store). Losing it makes stored credentials
-  unrecoverable (re-enter them). **Rotation:** generate a new key; set it as `APP_ENCRYPTION_KEY`
+  unrecoverable (re-enter them). **Rotation:** generate a new key; set it as `TDL_APP_ENCRYPTION_KEY`
   and the old one as `APP_ENCRYPTION_KEY_PREVIOUS`; restart; on *Settings → Credential encryption*
   check the counts and click *Re-encrypt credentials with the current key* (one transaction,
   audited, refused while any credential is unreadable); then remove `APP_ENCRYPTION_KEY_PREVIOUS` and
@@ -548,7 +554,7 @@ connect is not fully prevented.
   changing their role or password ends their sessions immediately.
 - CSRF protection on all state-changing requests (forms and `X-CSRF-TOKEN` for AJAX), session
   fixation protection, session timeout (`SESSION_TIMEOUT`, 30 min), logout invalidates the session and
-  deletes the cookie, HttpOnly/SameSite cookies (`SESSION_COOKIE_SECURE=true` behind HTTPS), a
+  deletes the cookie, HttpOnly/SameSite cookies (`TDL_SESSION_COOKIE_SECURE=true` behind HTTPS), a
   Content-Security-Policy, `X-Frame-Options: DENY`, error pages without stack traces or exception
   messages, and only `health`/`info` Actuator endpoints exposed (never `env` or `configprops`).
 - **Audit details** contain names, IDs and facts such as "SSH credentials replaced", never secret
@@ -560,25 +566,25 @@ connect is not fully prevented.
 
 | Variable | Purpose |
 |---|---|
-| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL connection |
-| `APP_ENCRYPTION_KEY` | Credential encryption key (required to store credentials) |
+| `TDL_DB_URL`, `TDL_DB_USERNAME`, `TDL_DB_PASSWORD` | PostgreSQL connection |
+| `TDL_APP_ENCRYPTION_KEY` | Credential encryption key (required to store credentials) |
 | `APP_ENCRYPTION_KEY_PREVIOUS` | Old key during a rotation (decrypt only); remove after re-encryption |
 | `APP_BOOTSTRAP_ADMIN_USERNAME`, `APP_BOOTSTRAP_ADMIN_PASSWORD` | First administrator when no account exists (temporary password) |
 | `APP_DEV_USERS` | Development only: seed admin/operator/viewer (default `false`) |
 | `LOGIN_MAX_FAILED_ATTEMPTS`, `LOGIN_LOCKOUT_DURATION`, `PASSWORD_MIN_LENGTH` | Lockout (default 5, `PT15M`) and minimum password length (12) |
 | `SERVER_PORT` | HTTP port (default 8181) |
-| `SESSION_COOKIE_SECURE`, `SESSION_TIMEOUT` | `true` when served over HTTPS; idle session timeout (default `30m`) |
+| `TDL_SESSION_COOKIE_SECURE`, `SESSION_TIMEOUT` | `true` only when browsers use HTTPS (on plain HTTP sign-in cannot work); idle session timeout (default `30m`) |
 | `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD`, `SPRING_MAIL_STARTTLS` | Optional SMTP server for notification email |
 | `NOTIFICATION_EMAIL_FROM`, `APP_BASE_URL` | Sender address; public URL for links in emails |
 | `APP_TIME_ZONE` | Display time zone (timestamps are stored in UTC) |
 | `CONNECTION_*`, `TLS_*` | See connectivity sections above |
-| `DEPLOYMENT_BACKUP_DIR` | Backups of replaced WARs (default `./var/backups`); private, backed up, outside the app directory in production |
+| `TDL_DEPLOYMENT_BACKUP_DIR` | Backups of replaced WARs (default `./var/backups`); private, backed up, outside the app directory in production |
 | `DEPLOYMENT_STARTUP_TIMEOUT`, `DEPLOYMENT_CONSECUTIVE_SUCCESSES` | Health verification after deployment (default 300 s, 2) |
 | `DEPLOYMENT_MAX_CONCURRENT`, `DEPLOYMENT_MAX_PARALLEL_TARGETS` | Concurrent deployments (default 2) and targets in parallel mode (default 4) |
 | `DEPLOYMENT_BACKUP_RETENTION` | Server backups kept per instance and context (default 10; `0` keeps all). The current rollback point is never pruned |
 | `HEALTH_MONITORING_ENABLED`, `HEALTH_MONITOR_INTERVAL` | Periodic application health monitoring (default on, every `PT5M`) |
 | `HEALTH_MAX_CONCURRENT_CHECKS`, `HEALTH_RETENTION` | Parallel health requests (default 4); history kept (default `P30D`) |
-| `ARTIFACT_STORAGE` | Private WAR storage directory (default `./var/artifacts`). Use a dedicated, backed-up volume outside the application directory; never serve it over HTTP |
+| `TDL_ARTIFACT_STORAGE` | Private WAR storage directory (default `./var/artifacts`). Use a dedicated, backed-up volume outside the application directory; never serve it over HTTP |
 | `RELEASE_MAX_UPLOAD_SIZE`, `RELEASE_MAX_REQUEST_SIZE` | Upload limits (default `1GB` / `1100MB`) |
 | `RELEASE_OPERATOR_UPLOAD` | Whether deployment operators may upload releases (default `true`) |
 
@@ -597,7 +603,7 @@ Per-instance timeouts (1–300 s) bound each network step; the host test uses
 | Deployment directory "not writable" | Fix ownership/mode as shown above. |
 | Manager 403 | User lacks `manager-script`, or `RemoteAddrValve` blocks this server. |
 | "certificate is not trusted" | Add the issuing CA to the trust store. |
-| "Stored credential could not be decrypted" | `APP_ENCRYPTION_KEY` differs from the one used to save it. |
+| "Stored credential could not be decrypted" | `TDL_APP_ENCRYPTION_KEY` differs from the one used to save it. |
 
 ## Milestone status
 

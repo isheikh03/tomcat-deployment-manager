@@ -92,7 +92,7 @@
         const none = state.options.environments.every((e) => e.instanceCount === 0);
         const isAdmin = !!root.querySelector("[data-is-admin]");
         const items = unassigned.map((i) => el("li", {}, isAdmin
-            ? el("a", { href: "/infrastructure/instances/" + i.id + "/edit#environment1", text: i.name + " (" + i.hostName + ")" })
+            ? el("a", { href: root.dataset.baseUrl + "infrastructure/instances/" + i.id + "/edit#environment1", text: i.name + " (" + i.hostName + ")" })
             : el("span", { text: i.name + " (" + i.hostName + ")" })));
         box.replaceChildren(el("div", { class: "alert " + (none ? "alert-warning" : "alert-secondary") + " small" },
             el("strong", { text: none ? "No Tomcat instance has an environment yet, so there is nothing to deploy to. "
@@ -267,7 +267,7 @@
             const run = await apiFetch(root.dataset.submitUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
                 requestId: root.dataset.requestId, deployment: requestBody(), acknowledgeWarnings: $("[data-ack]").checked, confirmation: $("[data-confirm-input]").value.trim()
             }) });
-            window.location.href = "/deployments/" + run.id;
+            window.location.href = root.dataset.baseUrl + "deployments/" + run.id;
         } catch (e) {
             button.textContent = "▶ Deploy";
             button.disabled = false;

@@ -78,7 +78,7 @@
         <div class="col-12 col-xl-5">
             <section class="panel mb-3">
                 <h2 class="h6 border-bottom pb-2">Credential encryption</h2>
-                <div th:unless="${encryptionConfigured}" class="alert alert-danger small">APP_ENCRYPTION_KEY is not configured: credentials cannot be saved or used.</div>
+                <div th:unless="${encryptionConfigured}" class="alert alert-danger small">TDL_APP_ENCRYPTION_KEY is not configured: credentials cannot be saved or used.</div>
                 <th:block th:if="${encryptionConfigured}">
                     <dl class="row small mb-2">
                         <dt class="col-6">Algorithm</dt><dd class="col-6">AES-256-GCM, fresh nonce per value</dd>
@@ -89,7 +89,7 @@
                         <dt class="col-6">Need re-encryption</dt><dd class="col-6" th:classappend="${rotation.previous() > 0} ? ' text-warning-emphasis fw-semibold'" th:text="${rotation.previous()}"></dd>
                         <dt class="col-6">Unreadable</dt><dd class="col-6" th:classappend="${rotation.unreadable() > 0} ? ' text-danger fw-semibold'" th:text="${rotation.unreadable()}"></dd>
                     </dl>
-                    <p class="small text-secondary">The key ID is a fingerprint, not the key. To rotate: set the new key as <code>APP_ENCRYPTION_KEY</code> and the old one as
+                    <p class="small text-secondary">The key ID is a fingerprint, not the key. To rotate: set the new key as <code>TDL_APP_ENCRYPTION_KEY</code> and the old one as
                         <code>APP_ENCRYPTION_KEY_PREVIOUS</code>, restart, re-encrypt here, then remove the previous key. Losing the key makes stored credentials unrecoverable.</p>
                     <form method="post" th:action="@{/admin/settings/reencrypt}" data-confirm="Re-encrypt all stored credentials with the current key?">
                         <button class="btn btn-sm btn-outline-primary" type="submit" th:disabled="${rotation.previous() == 0}">Re-encrypt credentials with the current key</button>

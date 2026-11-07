@@ -1,6 +1,7 @@
 package com.tomcatmanager.users;
 
 import jakarta.servlet.http.HttpSession;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,15 +16,18 @@ import java.security.Principal;
 public class AccountController {
     private final UserAccountService accounts;
     private final UserBootstrap bootstrap;
+    private final boolean secureCookie;
 
-    public AccountController(UserAccountService accounts, UserBootstrap bootstrap) {
-        this.accounts = accounts; this.bootstrap = bootstrap;
+    public AccountController(UserAccountService accounts, UserBootstrap bootstrap,
+                             @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
+        this.accounts = accounts; this.bootstrap = bootstrap; this.secureCookie = secureCookie;
     }
 
     @GetMapping("/login")
     public String login(Model model) {
         if (bootstrap.setupOpen()) return "redirect:/setup";
         model.addAttribute("pageTitle", "Sign in");
+        model.addAttribute("secureCookie", secureCookie);
         return "account/login";
     }
 

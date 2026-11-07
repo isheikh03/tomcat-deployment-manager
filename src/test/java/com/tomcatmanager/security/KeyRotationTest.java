@@ -32,7 +32,7 @@ class KeyRotationTest {
         String stored = new SecretEncryptionService(oldKey).encrypt("s3cret");
 
         SecretEncryptionService withoutPrevious = new SecretEncryptionService(currentKey);
-        assertThatThrownBy(() -> withoutPrevious.decrypt(stored)).hasMessageContaining("wrong APP_ENCRYPTION_KEY");
+        assertThatThrownBy(() -> withoutPrevious.decrypt(stored)).hasMessageContaining("wrong TDL_APP_ENCRYPTION_KEY");
 
         SecretEncryptionService rotating = new SecretEncryptionService(currentKey, oldKey);
         assertThat(rotating.decrypt(stored)).isEqualTo("s3cret");
