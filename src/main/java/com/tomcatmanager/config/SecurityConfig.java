@@ -17,7 +17,10 @@ import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
@@ -99,7 +102,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").failureUrl("/login?error").permitAll().successHandler(successHandler(loginSuccess)))
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout").invalidateHttpSession(true).clearAuthentication(true).deleteCookies("JSESSIONID"))
-                .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED), api))
+                .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED), api)
+                        .accessDeniedHandler(accessDeniedHandler()))
                 .sessionManagement(session -> session
                         .sessionFixation(fixation -> fixation.changeSessionId())
                         // Tracked so that disabling a user or changing their role or password ends their sessions.
@@ -112,6 +116,22 @@ public class SecurityConfig {
                         .frameOptions(frame -> frame.deny())
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN)))
                 .build();
+    }
+
+    /**
+     * A sign-in rejected by the CSRF check (a stale login page, or a session cookie the browser did not keep)
+     * returns to the login page with an explanation. Nothing is authenticated; all other denials stay 403.
+     */
+    private static AccessDeniedHandler accessDeniedHandler() {
+        AccessDeniedHandler standard = new AccessDeniedHandlerImpl();
+        return (request, response, denied) -> {
+            String path = request.getRequestURI().substring(request.getContextPath().length());
+            if (denied instanceof CsrfException && HttpMethod.POST.matches(request.getMethod()) && path.equals("/login")) {
+                response.sendRedirect(request.getContextPath() + "/login?retry");
+                return;
+            }
+            standard.handle(request, response, denied);
+        };
     }
 
     /** Sends users with a temporary password to the password page; falls back to the dashboard (e.g. in web-layer tests). */

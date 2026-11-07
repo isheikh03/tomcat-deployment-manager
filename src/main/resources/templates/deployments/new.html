@@ -26,7 +26,7 @@
     </section>
 
     <div class="wizard" id="wizard" th:if="${hasApplications and hasInstances}"
-         th:attr="data-options-url=@{/api/deployments/wizard-options},data-preview-url=@{/api/deployments/preview},data-submit-url=@{/api/deployments},data-request-id=${requestId},data-preselected-release=${preselectedRelease}">
+         th:attr="data-base-url=@{/},data-options-url=@{/api/deployments/wizard-options},data-preview-url=@{/api/deployments/preview},data-submit-url=@{/api/deployments},data-request-id=${requestId},data-preselected-release=${preselectedRelease}">
         <ol class="wizard-steps" aria-label="Steps">
             <li data-step-nav="1" class="active"><span>1</span>Release</li>
             <li data-step-nav="2"><span>2</span>Environment</li>

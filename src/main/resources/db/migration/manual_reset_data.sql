@@ -7,7 +7,7 @@
 -- flyway_schema_history so Flyway still knows the schema is up to date. ID sequences restart at 1.
 -- Tables added by later migrations are included automatically.
 -- Not CASCADE: if a kept table ever references a truncated one, this fails instead of emptying it.
--- Stored release files and WAR backups on disk (ARTIFACT_STORAGE, DEPLOYMENT_BACKUP_DIR) are not removed.
+-- Stored release files and WAR backups on disk (TDL_ARTIFACT_STORAGE, TDL_DEPLOYMENT_BACKUP_DIR) are not removed.
 
 DO $$
 DECLARE

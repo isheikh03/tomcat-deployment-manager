@@ -13,7 +13,7 @@ import java.util.function.Supplier;
 
 /**
  * Re-encrypts every stored credential (SSH passwords, private keys, passphrases, Tomcat Manager
- * passwords) with the current {@code APP_ENCRYPTION_KEY}. Used after rotating the key, while the old
+ * passwords) with the current {@code TDL_APP_ENCRYPTION_KEY}. Used after rotating the key, while the old
  * key is still configured as {@code APP_ENCRYPTION_KEY_PREVIOUS}. Runs in one transaction: either
  * all credentials are re-encrypted or none. Values are never logged or audited.
  */
@@ -48,7 +48,7 @@ public class CredentialRotationService {
 
     /** Re-encrypts all credentials that are not yet under the current key. Refuses if any value is unreadable. */
     public int reencryptAll(String actor) {
-        if (!encryption.isConfigured()) throw new IllegalStateException("APP_ENCRYPTION_KEY is not configured.");
+        if (!encryption.isConfigured()) throw new IllegalStateException("TDL_APP_ENCRYPTION_KEY is not configured.");
         Status before = status();
         if (before.unreadable() > 0)
             throw new IllegalStateException(before.unreadable() + " stored credential(s) cannot be decrypted with the current or previous key. "

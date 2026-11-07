@@ -5,6 +5,7 @@
     <groupId>com.tomcatmanager</groupId>
     <artifactId>tomcat-deployment-manager</artifactId>
     <version>1.0.0</version>
+    <packaging>war</packaging>
     <name>Tomcat Deployment Manager</name>
     <description>Standalone manager for deploying verified WAR releases to multiple Tomcat instances.</description>
     <parent>
@@ -110,8 +111,19 @@
             <artifactId>spring-boot-starter-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat-runtime</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Server abstractions only (no server): spring-boot-tomcat stays in the WAR and needs these at runtime. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-web-server</artifactId>
+        </dependency>
     </dependencies>
     <build>
+        <finalName>tomcat-deployment-manager</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

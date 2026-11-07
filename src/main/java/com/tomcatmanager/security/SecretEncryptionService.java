@@ -24,7 +24,7 @@ import java.util.HexFormat;
  * random nonce per encryption. Values without a version prefix are the original unversioned layout
  * and are still readable.
  *
- * <p>Key rotation: set the new key as {@code APP_ENCRYPTION_KEY} and the old one as
+ * <p>Key rotation: set the new key as {@code TDL_APP_ENCRYPTION_KEY} and the old one as
  * {@code APP_ENCRYPTION_KEY_PREVIOUS}. Values are then decrypted with whichever key authenticates
  * them (GCM rejects the wrong key), and the administrator re-encrypts all stored credentials with
  * the current key ({@link CredentialRotationService}); afterwards the previous key can be removed.
@@ -48,10 +48,10 @@ public class SecretEncryptionService {
                                    @Value("${app.security.encryption-key-previous:}") String previousConfiguredKey) {
         byte[] parsed = null; String problem = null;
         if (configuredKey == null || configuredKey.isBlank()) {
-            problem = "APP_ENCRYPTION_KEY is not configured; credentials cannot be saved or used.";
+            problem = "TDL_APP_ENCRYPTION_KEY is not configured; credentials cannot be saved or used.";
         } else {
             parsed = parse(configuredKey);
-            if (parsed == null) problem = "APP_ENCRYPTION_KEY must be Base64 for exactly 32 random bytes.";
+            if (parsed == null) problem = "TDL_APP_ENCRYPTION_KEY must be Base64 for exactly 32 random bytes.";
         }
         byte[] previous = previousConfiguredKey == null || previousConfiguredKey.isBlank() ? null : parse(previousConfiguredKey);
         if (previousConfiguredKey != null && !previousConfiguredKey.isBlank() && previous == null)
@@ -111,7 +111,7 @@ public class SecretEncryptionService {
                 catch (AEADBadTagException ignored) { /* fall through */ }
                 catch (GeneralSecurityException ex) { throw new IllegalStateException("Could not decrypt stored credential.", ex); }
             }
-            throw new IllegalStateException("Stored credential could not be decrypted: wrong APP_ENCRYPTION_KEY or tampered data.");
+            throw new IllegalStateException("Stored credential could not be decrypted: wrong TDL_APP_ENCRYPTION_KEY or tampered data.");
         } catch (GeneralSecurityException e) { throw new IllegalStateException("Could not decrypt stored credential.", e); }
     }
 

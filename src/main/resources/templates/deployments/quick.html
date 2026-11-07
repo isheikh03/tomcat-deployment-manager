@@ -26,7 +26,7 @@
     </section>
 
     <div class="wizard" id="quick" th:if="${hasInstances}"
-         th:attr="data-upload-url=@{/api/quick-deployments/release},data-options-url=@{/api/deployments/wizard-options},data-preview-url=@{/api/deployments/preview},data-submit-url=@{/api/deployments},data-request-id=${requestId},data-max-bytes=${maxBytes},data-max-size=${maxSize}">
+         th:attr="data-base-url=@{/},data-upload-url=@{/api/quick-deployments/release},data-options-url=@{/api/deployments/wizard-options},data-preview-url=@{/api/deployments/preview},data-submit-url=@{/api/deployments},data-request-id=${requestId},data-max-bytes=${maxBytes},data-max-size=${maxSize}">
         <span sec:authorize="hasRole('ADMIN')" data-is-admin hidden></span>
         <ol class="wizard-steps" aria-label="Steps">
             <li data-step-nav="1" class="active"><span>1</span>Upload WAR</li>

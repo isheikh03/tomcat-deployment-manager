@@ -24,7 +24,7 @@
         <div><strong><i class="bx bx-globe me-1"></i>Tomcat Manager: per Tomcat instance</strong><span>Tomcat's own HTTP/HTTPS web interface (<code>/manager/text</code>). Instances using this method deploy through it and need no SSH.</span></div>
     </div>
     <div th:unless="${encryptionConfigured}" class="alert alert-warning" role="alert">
-        <strong>APP_ENCRYPTION_KEY is not configured.</strong> Credentials cannot be stored or used for connection tests until it is set.
+        <strong>TDL_APP_ENCRYPTION_KEY is not configured.</strong> Credentials cannot be stored or used for connection tests until it is set.
     </div>
 
     <section class="panel mb-4 p-0">

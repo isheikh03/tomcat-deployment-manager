@@ -24,6 +24,13 @@
                     <div class="alert alert-warning small" th:if="${param.expired != null}" role="status">
                         Your session ended (your account was changed by an administrator, or you signed in elsewhere). Please sign in again.
                     </div>
+                    <div class="alert alert-warning small" th:if="${param.retry != null}" role="status">
+                        Your sign-in could not be completed because the page had expired. Please try again.
+                    </div>
+                    <div class="alert alert-danger small d-none" id="insecure-cookie-warning" th:if="${secureCookie}" role="alert">
+                        <strong>Sign-in cannot work on this address.</strong> The server only allows sign-in over HTTPS, but this page was opened over HTTP.
+                        Open it with <code>https://</code>, or ask your administrator to set <code>TDL_SESSION_COOKIE_SECURE=false</code> if this server has no HTTPS.
+                    </div>
                     <div class="alert alert-success small" th:if="${success}" th:text="${success}" role="status"></div>
 
                     <form th:action="@{/login}" method="post" novalidate>
@@ -54,5 +61,6 @@
     </div>
 </div>
 <th:block th:replace="~{fragments/layout :: authScripts}"></th:block>
+<script th:src="@{/js/login.js}"></script>
 </body>
 </html>

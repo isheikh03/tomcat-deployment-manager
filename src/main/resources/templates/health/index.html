@@ -22,7 +22,7 @@
     </div>
 
     <div class="alert alert-secondary small" th:unless="${overview.monitoringEnabled()}">
-        Periodic monitoring is switched off in <a href="/admin/settings">Settings</a>. Manual checks still work.
+        Periodic monitoring is switched off in <a th:href="@{/admin/settings}">Settings</a>. Manual checks still work.
     </div>
     <p class="small text-secondary" th:if="${overview.monitoringEnabled()}"
        th:text="'Checked every ' + ${overview.intervalSeconds() >= 60 ? (overview.intervalSeconds() / 60) + ' min' : overview.intervalSeconds() + ' s'} + '. One failed check marks an application Degraded; ' + ${overview.unhealthyAfter()} + ' in a row mark it Unhealthy. Instances with a deployment in progress are skipped (the deployment checks health itself).'"></p>
