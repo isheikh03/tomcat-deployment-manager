@@ -4,12 +4,12 @@
 <body>
 <div class="page">
 <header th:replace="~{fragments/layout :: header}"></header>
-<aside th:replace="~{fragments/layout :: sidebar('infrastructure')}"></aside>
+<aside th:replace="~{fragments/layout :: sidebar('infra-instances')}"></aside>
 <main class="main-content app-content" th:with="ssh=${instance.deploymentMethod.name() == 'SSH_SFTP'}">
 <div class="container-fluid">
     <nav aria-label="breadcrumb"><ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
-        <li class="breadcrumb-item"><a th:href="@{/infrastructure/hosts/{id}(id=${instance.host.id})}" th:text="${instance.host.name}">host</a></li>
+        <li class="breadcrumb-item">Infrastructure</li>
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure/instances}">Tomcat instances</a></li>
         <li class="breadcrumb-item active" th:text="${instance.name}">instance</li>
     </ol></nav>
     <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">

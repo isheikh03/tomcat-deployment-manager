@@ -128,9 +128,22 @@
                 </li>
 
                 <li class="slide__category"><span class="category-name">Workspace</span></li>
-                <li class="slide" th:classappend="${active == 'infrastructure'} ? ' active'">
-                    <a th:href="@{/infrastructure}" class="side-menu__item" th:classappend="${active == 'infrastructure'} ? ' active'">
-                        <i class="bx bx-server side-menu__icon"></i><span class="side-menu__label">Infrastructure</span></a>
+                <!-- Infrastructure sub-menu: active keys infra-hosts, infra-instances, infra-groups. -->
+                <li class="slide has-sub" th:with="infraOpen=${active != null and active.startsWith('infra')}"
+                    th:classappend="${infraOpen} ? ' open active'">
+                    <a href="#" class="side-menu__item" role="button" data-submenu-toggle th:classappend="${infraOpen} ? ' active'"
+                       th:attr="aria-expanded=${infraOpen}">
+                        <i class="bx bx-server side-menu__icon"></i><span class="side-menu__label">Infrastructure</span>
+                        <i class="ri-arrow-right-s-line side-menu__angle"></i></a>
+                    <ul class="slide-menu child1">
+                        <li class="slide side-menu__label1"><a href="#" data-submenu-toggle>Infrastructure</a></li>
+                        <li class="slide" th:classappend="${active == 'infra-hosts'} ? ' active'">
+                            <a th:href="@{/infrastructure/hosts}" class="side-menu__item" th:classappend="${active == 'infra-hosts'} ? ' active'">Linux Hosts</a></li>
+                        <li class="slide" th:classappend="${active == 'infra-instances'} ? ' active'">
+                            <a th:href="@{/infrastructure/instances}" class="side-menu__item" th:classappend="${active == 'infra-instances'} ? ' active'">Tomcat Instances</a></li>
+                        <li class="slide" th:classappend="${active == 'infra-groups'} ? ' active'">
+                            <a th:href="@{/infrastructure/groups}" class="side-menu__item" th:classappend="${active == 'infra-groups'} ? ' active'">Server Groups</a></li>
+                    </ul>
                 </li>
                 <li class="slide" th:classappend="${active == 'applications'} ? ' active'">
                     <a th:href="@{/applications}" class="side-menu__item" th:classappend="${active == 'applications'} ? ' active'">
@@ -201,6 +214,31 @@
         <i class="bx bx-error-circle fs-18"></i><span th:text="${error}"></span>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>
 </th:block>
+
+<!-- Active filters as removable chips, for list pages built on ListView. -->
+<div th:fragment="filterChips(view)" class="filter-chips" th:if="${view.filtered}">
+    <span class="filter-chips-label">Filtered by</span>
+    <a th:each="c : ${view.chips}" class="filter-chip" th:href="${c.removeUrl()}" th:title="'Remove: ' + ${c.label()}">
+        <span th:text="${c.label()}">filter</span><i class="bx bx-x" aria-hidden="true"></i></a>
+    <a class="filter-chips-clear" th:href="${view.clearUrl}">Clear all</a>
+</div>
+
+<!-- Footer of a list table: "Showing 1–25 of 132" and page links. -->
+<div th:fragment="pager(view, noun)" class="list-footer" th:if="${view.totalElements > 0}">
+    <span class="text-secondary" th:text="'Showing ' + ${view.from} + '–' + ${view.to} + ' of ' + ${view.totalElements} + ' ' + ${noun}">Showing</span>
+    <nav th:if="${view.totalPages > 1}" aria-label="Pages">
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" th:classappend="${view.first} ? ' disabled'">
+                <a class="page-link" th:href="${view.prevUrl}" aria-label="Previous page"><i class="bx bx-chevron-left"></i></a></li>
+            <li th:each="l : ${view.links}" class="page-item" th:classappend="${l.current()} ? ' active' : (${l.gap()} ? ' disabled' : '')">
+                <span th:if="${l.gap()}" class="page-link">…</span>
+                <a th:unless="${l.gap()}" class="page-link" th:href="${l.url()}" th:text="${l.number()}"
+                   th:attr="aria-current=${l.current()} ? 'page' : null">1</a></li>
+            <li class="page-item" th:classappend="${view.last} ? ' disabled'">
+                <a class="page-link" th:href="${view.nextUrl}" aria-label="Next page"><i class="bx bx-chevron-right"></i></a></li>
+        </ul>
+    </nav>
+</div>
 
 <span th:fragment="status(s)" class="badge" th:classappend="${s.badgeClass()}" th:text="${s.label()}"
       th:title="${s.checkedAt() != null} ? 'Last tested ' + ${@time.format(s.checkedAt())} : 'No connection test recorded'">Never tested</span>

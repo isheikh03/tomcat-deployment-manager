@@ -62,9 +62,42 @@ class InfrastructureAuthorizationTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Server host key fingerprint")));
     }
 
-    @Test void viewerCanReadInfrastructureOverview() throws Exception {
+    @Test void infrastructureStartsAtTheHostListAndViewersSeeNoAddButton() throws Exception {
         mvc.perform(get("/infrastructure").with(user("viewer").roles("VIEWER")))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/infrastructure/hosts"));
+        mvc.perform(get("/infrastructure/hosts").with(user("viewer").roles("VIEWER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Add host"))));
+    }
+
+    @Test void hostListFiltersAndShowsRemovableChipsWithoutAdminActionsForViewers() throws Exception {
+        org.mockito.Mockito.when(hosts.findAllByOrderByNameAsc()).thenReturn(java.util.List.of(
+                InfrastructureListingTest.host(1, "Web Server", "10.0.0.5", true, true),
+                InfrastructureListingTest.host(2, "database-live", "db.example.com", false, false)));
+        mvc.perform(get("/infrastructure/hosts").param("q", "web").param("status", "enabled").with(user("viewer").roles("VIEWER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Web Server")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("database-live"))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Showing 1–1 of 1 hosts")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"?status=enabled\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/infrastructure/hosts/1/edit"))));
+    }
+
+    @Test void instanceAndGroupListsOpenForViewersAndExplainEmptyResults() throws Exception {
+        mvc.perform(get("/infrastructure/instances").param("environment", "NONE").param("page", "x").with(user("viewer").roles("VIEWER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("No Tomcat instances match these filters")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Environment: None")));
+        mvc.perform(get("/infrastructure/groups").with(user("operator").roles("DEPLOYMENT_OPERATOR")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("No server groups yet")));
+    }
+
+    @Test void adminSeesListActions() throws Exception {
+        org.mockito.Mockito.when(hosts.findAllByOrderByNameAsc()).thenReturn(java.util.List.of(InfrastructureListingTest.host(1, "Web Server", "10.0.0.5", true, true)));
+        mvc.perform(get("/infrastructure/hosts").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/infrastructure/hosts/1/edit")));
     }
 }

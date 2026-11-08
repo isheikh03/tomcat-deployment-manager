@@ -2,6 +2,8 @@ package com.tomcatmanager.infrastructure;
 
 import com.tomcatmanager.connectivity.ConnectionTestService;
 import com.tomcatmanager.connectivity.ConnectivityStatus;
+import com.tomcatmanager.connectivity.ConnectivityStatus.State;
+import com.tomcatmanager.common.ListView;
 import com.tomcatmanager.security.SecretEncryptionService;
 import jakarta.validation.Valid;
 import org.springframework.stereotype.Controller;
@@ -9,6 +11,13 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/infrastructure")
@@ -33,19 +42,151 @@ public class InfrastructureController {
         this.deploymentTargets = deploymentTargets; this.groupService = groupService; this.audit = audit;
     }
 
-    @GetMapping public String index(Model model) {
-        model.addAttribute("pageTitle", "Infrastructure");
-        model.addAttribute("hosts", hosts.findAllByOrderByNameAsc());
-        java.util.List<TomcatInstance> allInstances = instances.findAllByOrderByNameAsc();
-        model.addAttribute("instances", allInstances);
-        model.addAttribute("unassignedInstances", allInstances.stream().filter(i -> i.getEnvironment() == null).count());
-        model.addAttribute("groups", groups.findAll());
-        model.addAttribute("hostStatuses", connectionTests.latestHostStatuses());
-        model.addAttribute("instanceStatuses", connectionTests.latestInstanceStatuses());
+    /** The infrastructure section starts at the Linux hosts list (old links and bookmarks keep working). */
+    @GetMapping public String index() { return "redirect:/infrastructure/hosts"; }
+
+    // ---- Lists with search and filters ----
+
+    @GetMapping("/hosts") public String hostList(@RequestParam(required = false) String q, @RequestParam(required = false) String connectivity,
+                                                 @RequestParam(required = false) String status, @RequestParam(required = false) String hostKey,
+                                                 @RequestParam(required = false) String sort, @RequestParam(required = false) String page,
+                                                 @RequestParam(required = false) String size, Model model) {
+        Map<Long, ConnectivityStatus> statuses = connectionTests.latestHostStatuses();
+        State state = InfrastructureListing.parseEnum(State.class, connectivity);
+        Boolean enabled = InfrastructureListing.parseFlag(status, "enabled", "disabled");
+        Boolean pinned = InfrastructureListing.parseFlag(hostKey, "pinned", "unpinned");
+        String sortKey = oneOf(sort, "name-desc", "hostname", "problems", "newest");
+        List<ManagedHost> filtered = InfrastructureListing.hosts(hosts.findAllByOrderByNameAsc(),
+                new InfrastructureListing.HostFilter(q, state, enabled, pinned, sortKey), statuses);
+
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("q", q);
+        params.put("connectivity", state == null ? null : state.name());
+        params.put("status", enabled == null ? null : status);
+        params.put("hostKey", pinned == null ? null : hostKey);
+        params.put("sort", sortKey);
+        ListView<ManagedHost> view = ListView.of(filtered, page, size, params)
+                .chip("q", "Search: “" + trim(q) + "”")
+                .chip("connectivity", "Connectivity: " + (state == null ? "" : stateLabel(state)))
+                .chip("status", enabled == null ? "" : (enabled ? "Enabled" : "Disabled"))
+                .chip("hostKey", pinned == null ? "" : (pinned ? "Host key pinned" : "Host key not pinned"));
+
+        Map<Long, Long> instanceCounts = instances.findAllByOrderByNameAsc().stream()
+                .collect(Collectors.groupingBy(i -> i.getHost().getId(), Collectors.counting()));
+        model.addAttribute("pageTitle", "Linux hosts");
+        model.addAttribute("view", view);
+        model.addAttribute("q", trim(q));
+        model.addAttribute("connectivity", state == null ? "" : state.name());
+        model.addAttribute("status", enabled == null ? "" : status);
+        model.addAttribute("hostKey", pinned == null ? "" : hostKey);
+        model.addAttribute("sort", sortKey == null ? "" : sortKey);
+        model.addAttribute("totalCount", hosts.count());
+        model.addAttribute("connectivityOptions", connectivityOptions());
+        model.addAttribute("pageSizes", ListView.PAGE_SIZES);
+        model.addAttribute("hostStatuses", statuses);
+        model.addAttribute("instanceCounts", instanceCounts);
         model.addAttribute("neverTested", ConnectivityStatus.NEVER);
         model.addAttribute("encryptionConfigured", encryption.isConfigured());
-        return "infrastructure/index";
+        return "infrastructure/hosts";
     }
+
+    @GetMapping("/instances") public String instanceList(@RequestParam(required = false) String q, @RequestParam(required = false) String environment,
+                                                         @RequestParam(required = false) String host, @RequestParam(required = false) String method,
+                                                         @RequestParam(required = false) String group, @RequestParam(required = false) String connectivity,
+                                                         @RequestParam(required = false) String status, @RequestParam(required = false) String sort,
+                                                         @RequestParam(required = false) String page, @RequestParam(required = false) String size, Model model) {
+        Map<Long, ConnectivityStatus> statuses = connectionTests.latestInstanceStatuses();
+        List<ManagedHost> allHosts = hosts.findAllByOrderByNameAsc();
+        List<ServerGroup> allGroups = InfrastructureListing.groups(groups.findAll(), null);
+        String env = InfrastructureListing.NO_ENVIRONMENT.equals(environment) ? environment
+                : (InfrastructureListing.parseEnum(Environment.class, environment) == null ? null : environment.strip());
+        Long hostId = InfrastructureListing.parseId(host);
+        ManagedHost selectedHost = hostId == null ? null : allHosts.stream().filter(h -> h.getId().equals(hostId)).findFirst().orElse(null);
+        Long groupId = InfrastructureListing.parseId(group);
+        ServerGroup selectedGroup = groupId == null ? null : allGroups.stream().filter(g -> g.getId().equals(groupId)).findFirst().orElse(null);
+        TomcatInstance.DeploymentMethod deploymentMethod = InfrastructureListing.parseEnum(TomcatInstance.DeploymentMethod.class, method);
+        State state = InfrastructureListing.parseEnum(State.class, connectivity);
+        Boolean enabled = InfrastructureListing.parseFlag(status, "enabled", "disabled");
+        String sortKey = oneOf(sort, "name-desc", "host", "environment", "problems", "newest");
+        List<TomcatInstance> filtered = InfrastructureListing.instances(instances.findAllByOrderByNameAsc(),
+                new InfrastructureListing.InstanceFilter(q, env, selectedHost == null ? null : hostId, deploymentMethod,
+                        selectedGroup == null ? null : groupId, state, enabled, sortKey), statuses);
+
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("q", q);
+        params.put("environment", env);
+        params.put("host", selectedHost == null ? null : hostId.toString());
+        params.put("method", deploymentMethod == null ? null : deploymentMethod.name());
+        params.put("group", selectedGroup == null ? null : groupId.toString());
+        params.put("connectivity", state == null ? null : state.name());
+        params.put("status", enabled == null ? null : status);
+        params.put("sort", sortKey);
+        ListView<TomcatInstance> view = ListView.of(filtered, page, size, params)
+                .chip("q", "Search: “" + trim(q) + "”")
+                .chip("environment", env == null ? "" : "Environment: " + (InfrastructureListing.NO_ENVIRONMENT.equals(env) ? "None" : Environment.valueOf(env).label()))
+                .chip("host", selectedHost == null ? "" : "Host: " + selectedHost.getName())
+                .chip("method", deploymentMethod == null ? "" : "Method: " + methodLabel(deploymentMethod))
+                .chip("group", selectedGroup == null ? "" : "Group: " + selectedGroup.getName())
+                .chip("connectivity", state == null ? "" : "Connectivity: " + stateLabel(state))
+                .chip("status", enabled == null ? "" : (enabled ? "Enabled" : "Disabled"));
+
+        model.addAttribute("pageTitle", "Tomcat instances");
+        model.addAttribute("view", view);
+        model.addAttribute("q", trim(q));
+        model.addAttribute("environment", env == null ? "" : env);
+        model.addAttribute("host", selectedHost == null ? "" : hostId.toString());
+        model.addAttribute("method", deploymentMethod == null ? "" : deploymentMethod.name());
+        model.addAttribute("group", selectedGroup == null ? "" : groupId.toString());
+        model.addAttribute("connectivity", state == null ? "" : state.name());
+        model.addAttribute("status", enabled == null ? "" : status);
+        model.addAttribute("sort", sortKey == null ? "" : sortKey);
+        model.addAttribute("totalCount", instances.count());
+        model.addAttribute("hostOptions", allHosts);
+        model.addAttribute("groupOptions", allGroups);
+        model.addAttribute("environments", Environment.values());
+        model.addAttribute("deploymentMethods", TomcatInstance.DeploymentMethod.values());
+        model.addAttribute("connectivityOptions", connectivityOptions());
+        model.addAttribute("pageSizes", ListView.PAGE_SIZES);
+        model.addAttribute("instanceStatuses", statuses);
+        model.addAttribute("neverTested", ConnectivityStatus.NEVER);
+        model.addAttribute("encryptionConfigured", encryption.isConfigured());
+        return "infrastructure/instances";
+    }
+
+    @GetMapping("/groups") public String groupList(@RequestParam(required = false) String q, @RequestParam(required = false) String page,
+                                                   @RequestParam(required = false) String size, Model model) {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("q", q);
+        ListView<ServerGroup> view = ListView.of(InfrastructureListing.groups(groups.findAll(), q), page, size, params)
+                .chip("q", "Search: “" + trim(q) + "”");
+        Map<Long, Long> memberCounts = new HashMap<>();
+        for (TomcatInstance i : instances.findAllByOrderByNameAsc())
+            for (ServerGroup g : i.getGroups()) memberCounts.merge(g.getId(), 1L, Long::sum);
+        model.addAttribute("pageTitle", "Server groups");
+        model.addAttribute("view", view);
+        model.addAttribute("q", trim(q));
+        model.addAttribute("totalCount", groups.count());
+        model.addAttribute("pageSizes", ListView.PAGE_SIZES);
+        model.addAttribute("memberCounts", memberCounts);
+        return "infrastructure/groups";
+    }
+
+    private static Map<String, String> connectivityOptions() {
+        Map<String, String> options = new LinkedHashMap<>();
+        for (State s : List.of(State.FAILED, State.WARNING, State.STALE, State.NEVER_TESTED, State.VERIFIED)) options.put(s.name(), stateLabel(s));
+        return options;
+    }
+
+    private static String stateLabel(State s) { return new ConnectivityStatus(s, null, null).label(); }
+
+    private static String methodLabel(TomcatInstance.DeploymentMethod m) { return m == TomcatInstance.DeploymentMethod.SSH_SFTP ? "SSH / SFTP" : "Tomcat Manager"; }
+
+    /** The value if it is one of the allowed sort keys, else null (the default order). */
+    private static String oneOf(String value, String... allowed) {
+        return value != null && Arrays.asList(allowed).contains(value.strip()) ? value.strip() : null;
+    }
+
+    private static String trim(String s) { return s == null ? "" : s.strip(); }
 
     // ---- Hosts ----
 
@@ -73,7 +214,7 @@ public class InfrastructureController {
         String name = hostService.find(id).getName();
         try { hostService.delete(id); audit.hostDeleted(id, name); flash.addFlashAttribute("success", "Host deleted."); }
         catch (IllegalStateException e) { flash.addFlashAttribute("error", e.getMessage()); }
-        return "redirect:/infrastructure";
+        return "redirect:/infrastructure/hosts";
     }
     private String hostForm(Model model, HostForm form) {
         // Never echo secrets back into the page, even after a validation error.
@@ -114,7 +255,7 @@ public class InfrastructureController {
     @PostMapping("/groups/{id}/delete") public String deleteGroup(@PathVariable Long id, RedirectAttributes flash) {
         String name = groupService.find(id).getName();
         groupService.delete(id); audit.groupDeleted(id, name);
-        flash.addFlashAttribute("success", "Server group deleted."); return "redirect:/infrastructure";
+        flash.addFlashAttribute("success", "Server group deleted."); return "redirect:/infrastructure/groups";
     }
     @PostMapping("/groups/{id}/members") public String addMember(@PathVariable Long id, @RequestParam(required = false) Long instanceId, RedirectAttributes flash) {
         if (instanceId == null) { flash.addFlashAttribute("error", "Choose a Tomcat instance to add."); return "redirect:/infrastructure/groups/" + id; }
@@ -157,7 +298,7 @@ public class InfrastructureController {
     @PostMapping("/instances/{id}/delete") public String deleteInstance(@PathVariable Long id, RedirectAttributes flash) {
         String name = instanceService.find(id).getName();
         instanceService.delete(id); audit.instanceDeleted(id, name);
-        flash.addFlashAttribute("success", "Tomcat instance deleted."); return "redirect:/infrastructure";
+        flash.addFlashAttribute("success", "Tomcat instance deleted."); return "redirect:/infrastructure/instances";
     }
     private String instanceForm(Model model, InstanceForm form) {
         form.setManagerSecret(null);

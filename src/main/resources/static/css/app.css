@@ -327,3 +327,29 @@ tr.row-link { cursor: pointer; }
 .swal2-title { color: var(--default-text-color); font-size: 1.25rem; }
 .swal2-styled.swal2-confirm { background-color: var(--primary-color); }
 .swal2-input, .swal2-textarea { color: var(--default-text-color); }
+
+/* Infrastructure list pages: toolbar, active filter chips, footer */
+.list-card { overflow: hidden; }
+.list-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--default-border); }
+.list-toolbar .form-select { flex: 0 1 190px; width: auto; }
+.list-toolbar .list-size { flex: 0 0 auto; }
+.list-toolbar-filters { flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .5rem; }
+.list-toolbar-filters .form-select { width: 100%; }
+.list-search { position: relative; flex: 1 1 280px; min-width: 220px; }
+.list-search > .bx-search { position: absolute; inset-inline-start: .75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 1.05rem; pointer-events: none; }
+.list-search .form-control { padding-inline-start: 2.25rem; padding-inline-end: 2.25rem; }
+.list-search-key { position: absolute; inset-inline-end: .6rem; top: 50%; transform: translateY(-50%); font-size: .7rem; padding: .05rem .4rem; background: var(--soft); color: var(--text-muted); border: 1px solid var(--default-border); box-shadow: none; }
+.list-search .form-control:focus ~ .list-search-key { display: none; }
+.filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; padding: .65rem 1.25rem; border-bottom: 1px solid var(--default-border); background: var(--primary005); }
+.filter-chips-label { font-size: .75rem; color: var(--text-muted); margin-inline-end: .25rem; }
+.filter-chip { display: inline-flex; align-items: center; gap: .25rem; font-size: .75rem; font-weight: 500; padding: .2rem .35rem .2rem .65rem; border-radius: 999px; background: var(--primary01); color: var(--primary-color); text-decoration: none; }
+.filter-chip:hover { background: var(--primary-color); color: #fff; }
+.filter-chip .bx { font-size: .95rem; }
+.filter-chips-clear { font-size: .75rem; margin-inline-start: .25rem; }
+.list-table td .btn-icon + .btn-icon, .list-table td .btn-icon + form, .list-table td form + .btn-icon { margin-inline-start: .15rem; }
+.list-table .list-primary { max-width: 26rem; }
+.list-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem; padding: .85rem 1.25rem; border-top: 1px solid var(--default-border); font-size: .8125rem; }
+
+@media (max-width: 575.98px) {
+  .list-toolbar .form-select, .list-toolbar .btn { flex: 1 1 100%; }
+}

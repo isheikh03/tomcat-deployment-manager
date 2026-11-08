@@ -46,7 +46,7 @@
                     <td class="text-end text-nowrap">
                         <form th:if="${u.locked}" class="d-inline" method="post" th:action="@{/admin/users/{id}/unlock(id=${u.id})}">
                             <button class="btn btn-sm btn-outline-danger" type="submit">Unlock</button></form>
-                        <a class="btn btn-sm btn-outline-secondary" th:href="@{/admin/users/{id}/edit(id=${u.id})}">Edit</a></td>
+                        <a class="btn btn-icon btn-sm btn-secondary-light" th:href="@{/admin/users/{id}/edit(id=${u.id})}" title="Edit" aria-label="Edit"><i class="bx bx-edit-alt"></i></a></td>
                 </tr>
                 </tbody>
             </table>

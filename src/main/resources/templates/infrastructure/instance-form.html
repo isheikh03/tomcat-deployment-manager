@@ -4,11 +4,12 @@
 <body>
 <div class="page">
 <header th:replace="~{fragments/layout :: header}"></header>
-<aside th:replace="~{fragments/layout :: sidebar('infrastructure')}"></aside>
+<aside th:replace="~{fragments/layout :: sidebar('infra-instances')}"></aside>
 <main class="main-content app-content">
 <div class="container-fluid">
     <nav aria-label="breadcrumb"><ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
+        <li class="breadcrumb-item">Infrastructure</li>
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure/instances}">Tomcat instances</a></li>
         <li class="breadcrumb-item" th:if="${form.id != null}"><a th:href="@{/infrastructure/instances/{id}(id=${form.id})}" th:text="${form.name}">instance</a></li>
         <li class="breadcrumb-item active" th:text="${pageTitle}">Add Tomcat instance</li>
     </ol></nav>
@@ -253,7 +254,7 @@
                 <div class="card-footer d-flex flex-wrap align-items-center gap-2">
                     <span class="text-muted fs-12 d-none d-md-inline">Nothing is saved until you press Save.</span>
                     <span class="flex-grow-1"></span>
-                    <a class="btn btn-light border" th:href="${form.id == null} ? @{/infrastructure} : @{/infrastructure/instances/{id}(id=${form.id})}">Cancel</a>
+                    <a class="btn btn-light border" th:href="${form.id == null} ? @{/infrastructure/instances} : @{/infrastructure/instances/{id}(id=${form.id})}">Cancel</a>
                     <button class="btn btn-primary btn-wave" type="submit" th:disabled="${#lists.isEmpty(hosts)}"><i class="bx bx-save me-1"></i>Save instance</button>
                 </div>
             </div>

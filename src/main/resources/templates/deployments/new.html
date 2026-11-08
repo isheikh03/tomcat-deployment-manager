@@ -22,7 +22,7 @@
         <h2 class="h6">Not ready to deploy yet</h2>
         <p class="text-secondary small mb-3" th:if="${!hasApplications}">Register an application and upload a release first.</p>
         <p class="text-secondary small mb-3" th:if="${hasApplications and !hasInstances}">Add a Tomcat instance first.</p>
-        <a class="btn btn-primary btn-sm" th:href="${!hasApplications} ? @{/applications} : @{/infrastructure}">Open</a>
+        <a class="btn btn-primary btn-sm" th:href="${!hasApplications} ? @{/applications} : @{/infrastructure/instances}">Open</a>
     </section>
 
     <div class="wizard" id="wizard" th:if="${hasApplications and hasInstances}"

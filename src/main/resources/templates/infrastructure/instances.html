@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="dark" data-toggled="close" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('infra-instances')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+            <li class="breadcrumb-item">Infrastructure</li>
+            <li class="breadcrumb-item active" aria-current="page">Tomcat instances</li>
+        </ol></nav>
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h1 class="h3 mb-1">Tomcat instances <span class="badge text-bg-light border align-middle fs-12" th:text="${totalCount}">0</span></h1>
+            <p class="text-secondary mb-0">Each Tomcat on a host that releases can be deployed to.</p>
+        </div>
+        <a sec:authorize="hasRole('ADMIN')" class="btn btn-primary" th:href="@{/infrastructure/instances/new}"><i class="bx bx-plus me-1"></i>Add Tomcat instance</a>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+    <div th:unless="${encryptionConfigured}" class="alert alert-warning small" role="alert">
+        <strong>TDL_APP_ENCRYPTION_KEY is not configured.</strong> Credentials cannot be stored or used for connection tests until it is set.
+    </div>
+
+    <div class="card custom-card list-card">
+        <form class="list-toolbar" method="get" th:action="@{/infrastructure/instances}" role="search">
+            <div class="list-search">
+                <i class="bx bx-search" aria-hidden="true"></i>
+                <input type="search" class="form-control" name="q" th:value="${q}" placeholder="Search name, host, directory, WAR file or context path"
+                       aria-label="Search Tomcat instances" data-search-shortcut autocomplete="off">
+                <kbd class="list-search-key" title="Press / to search">/</kbd>
+            </div>
+            <button class="btn btn-primary" type="submit">Search</button>
+            <div class="list-toolbar-filters">
+                <select class="form-select" name="environment" aria-label="Environment" data-autosubmit>
+                    <option value="">--Environments--</option>
+                    <option th:each="e : ${environments}" th:value="${e.name()}" th:text="${e.label()}" th:selected="${e.name() == environment}"></option>
+                    <option value="NONE" th:selected="${environment == 'NONE'}">No environment</option>
+                </select>
+                <select class="form-select" name="host" aria-label="Host" data-autosubmit>
+                    <option value="">--Hosts--</option>
+                    <option th:each="h : ${hostOptions}" th:value="${h.id}" th:text="${h.name}" th:selected="${h.id.toString() == host}"></option>
+                </select>
+                <select class="form-select" name="method" aria-label="Deployment method" data-autosubmit>
+                    <option value="">--Method--</option>
+                    <option th:each="m : ${deploymentMethods}" th:value="${m.name()}" th:text="${m.name() == 'SSH_SFTP' ? 'SSH / SFTP' : 'Tomcat Manager'}" th:selected="${m.name() == method}"></option>
+                </select>
+                <select class="form-select" name="group" aria-label="Server group" data-autosubmit>
+                    <option value="">--Group--</option>
+                    <option th:each="g : ${groupOptions}" th:value="${g.id}" th:text="${g.name}" th:selected="${g.id.toString() == group}"></option>
+                </select>
+                <select class="form-select" name="connectivity" aria-label="Connectivity" data-autosubmit>
+                    <option value="">--Connectivity--</option>
+                    <option th:each="o : ${connectivityOptions}" th:value="${o.key}" th:text="${o.value}" th:selected="${o.key == connectivity}"></option>
+                </select>
+                <select class="form-select" name="status" aria-label="Status" data-autosubmit>
+                    <option value="">--Status--</option>
+                    <option value="enabled" th:selected="${status == 'enabled'}">Enabled</option>
+                    <option value="disabled" th:selected="${status == 'disabled'}">Disabled</option>
+                </select>
+                <select class="form-select" name="sort" aria-label="Sort by" data-autosubmit>
+                    <option value="" th:selected="${sort == ''}">Sort: name A–Z</option>
+                    <option value="name-desc" th:selected="${sort == 'name-desc'}">Sort: name Z–A</option>
+                    <option value="host" th:selected="${sort == 'host'}">Sort: host</option>
+                    <option value="environment" th:selected="${sort == 'environment'}">Sort: environment</option>
+                    <option value="problems" th:selected="${sort == 'problems'}">Sort: problems first</option>
+                    <option value="newest" th:selected="${sort == 'newest'}">Sort: newest first</option>
+                </select>
+                <select class="form-select list-size" name="size" aria-label="Rows per page" data-autosubmit>
+                    <option th:each="s : ${pageSizes}" th:value="${s}" th:text="${s} + ' rows'" th:selected="${s == view.size}"></option>
+                </select>
+            </div>
+        </form>
+        <div th:replace="~{fragments/layout :: filterChips(${view})}"></div>
+
+        <div class="empty-state" th:if="${view.totalElements == 0}">
+            <div class="empty-icon"><i class="bx" th:classappend="${view.filtered} ? ' bx-search-alt' : ' bx-cube'"></i></div>
+            <th:block th:if="${view.filtered}">
+                <h2 class="h6">No Tomcat instances match these filters</h2>
+                <p class="text-secondary small mb-3">Try other words, or remove a filter.</p>
+                <a class="btn btn-light border btn-sm" th:href="${view.clearUrl}">Clear filters</a>
+            </th:block>
+            <th:block th:unless="${view.filtered}">
+                <h2 class="h6">No Tomcat instances yet</h2>
+                <p class="text-secondary small mb-3">Add a Linux host first, then the Tomcat instances running on it.</p>
+                <a sec:authorize="hasRole('ADMIN')" class="btn btn-primary btn-sm" th:href="@{/infrastructure/instances/new}">Add Tomcat instance</a>
+            </th:block>
+        </div>
+
+        <div class="table-responsive" th:if="${view.totalElements > 0}">
+            <table class="table table-hover align-middle mb-0 list-table">
+                <thead><tr><th>Instance</th><th>Host</th><th>Deployment method</th><th>Groups</th><th>Connectivity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                <tr th:each="i : ${view.content}">
+                    <td class="list-primary">
+                        <a class="fw-semibold" th:href="@{/infrastructure/instances/{id}(id=${i.id})}" th:text="${i.name}">instance</a>
+                        <span class="env-badge" th:classappend="${i.environment == null ? 'env-none' : 'env-' + i.environment.name().toLowerCase()}" th:text="${i.environment == null ? 'No environment' : i.environment.label()}"></span>
+                        <div class="small text-secondary text-truncate"><span th:text="${i.remoteDeploymentDirectory}"></span><th:block th:if="${i.deploymentFilename != null}">/<strong th:text="${i.deploymentFilename}"></strong> · <span th:text="${i.deploymentContextPath}"></span></th:block></div>
+                    </td>
+                    <td><a th:href="@{/infrastructure/hosts/{id}(id=${i.host.id})}" th:text="${i.host.name}">host</a><div class="small text-secondary" th:text="${i.host.hostname}"></div></td>
+                    <td class="text-nowrap" th:text="${i.deploymentMethod.name() == 'SSH_SFTP' ? 'SSH / SFTP' : 'Tomcat Manager'}"></td>
+                    <td><a th:each="g : ${i.groups}" class="badge text-bg-light border me-1" th:href="@{/infrastructure/instances(group=${g.id})}" th:text="${g.name}" th:title="'Show the members of ' + ${g.name}"></a><span th:if="${#sets.isEmpty(i.groups)}" class="text-secondary">—</span></td>
+                    <td><span th:replace="~{fragments/layout :: status(${instanceStatuses.getOrDefault(i.id, neverTested)})}"></span></td>
+                    <td><span class="badge" th:classappend="${i.enabled ? ' text-bg-success' : ' text-bg-secondary'}" th:text="${i.enabled ? 'Enabled' : 'Disabled'}"></span></td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-icon btn-sm btn-primary-light" th:href="@{/infrastructure/instances/{id}(id=${i.id})}" title="Details" aria-label="Details"><i class="bx bx-show"></i></a>
+                        <a sec:authorize="hasRole('ADMIN')" class="btn btn-icon btn-sm btn-secondary-light" th:href="@{/infrastructure/instances/{id}/edit(id=${i.id})}" title="Edit" aria-label="Edit"><i class="bx bx-edit-alt"></i></a>
+                        <form sec:authorize="hasRole('ADMIN')" class="d-inline" method="post" th:action="@{/infrastructure/instances/{id}/delete(id=${i.id})}" th:attr="data-confirm='Delete the Tomcat instance ' + ${i.name} + '?'">
+                            <button class="btn btn-icon btn-sm btn-danger-light" title="Delete" aria-label="Delete"><i class="bx bx-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div th:replace="~{fragments/layout :: pager(${view}, 'instances')}"></div>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

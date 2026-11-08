@@ -4,11 +4,12 @@
 <body>
 <div class="page">
 <header th:replace="~{fragments/layout :: header}"></header>
-<aside th:replace="~{fragments/layout :: sidebar('infrastructure')}"></aside>
+<aside th:replace="~{fragments/layout :: sidebar('infra-hosts')}"></aside>
 <main class="main-content app-content">
 <div class="container-fluid">
     <nav aria-label="breadcrumb"><ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
+        <li class="breadcrumb-item">Infrastructure</li>
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure/hosts}">Linux hosts</a></li>
         <li class="breadcrumb-item" th:if="${host.id != null}"><a th:href="@{/infrastructure/hosts/{id}(id=${host.id})}" th:text="${host.name}">host</a></li>
         <li class="breadcrumb-item active" th:text="${host.id == null ? 'Add Linux host' : 'Edit'}">Add Linux host</li>
     </ol></nav>
@@ -141,7 +142,7 @@
                     <button type="button" class="btn btn-outline-primary btn-wave" data-draft-test><i class="bx bx-transfer-alt me-1"></i>Test connection</button>
                     <span class="text-muted fs-12 d-none d-md-inline">Nothing is saved until you press Save.</span>
                     <span class="flex-grow-1"></span>
-                    <a class="btn btn-light border" th:href="${host.id == null} ? @{/infrastructure} : @{/infrastructure/hosts/{id}(id=${host.id})}">Cancel</a>
+                    <a class="btn btn-light border" th:href="${host.id == null} ? @{/infrastructure/hosts} : @{/infrastructure/hosts/{id}(id=${host.id})}">Cancel</a>
                     <button class="btn btn-primary btn-wave" type="submit"><i class="bx bx-save me-1"></i>Save host</button>
                 </div>
             </div>
