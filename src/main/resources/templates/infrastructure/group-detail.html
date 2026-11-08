@@ -4,11 +4,12 @@
 <body>
 <div class="page">
 <header th:replace="~{fragments/layout :: header}"></header>
-<aside th:replace="~{fragments/layout :: sidebar('infrastructure')}"></aside>
+<aside th:replace="~{fragments/layout :: sidebar('infra-groups')}"></aside>
 <main class="main-content app-content">
 <div class="container-fluid">
     <nav aria-label="breadcrumb"><ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a th:href="@{/infrastructure}">Infrastructure</a></li>
+        <li class="breadcrumb-item">Infrastructure</li>
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure/groups}">Server groups</a></li>
         <li class="breadcrumb-item active" th:text="${group.name}">group</li>
     </ol></nav>
     <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">

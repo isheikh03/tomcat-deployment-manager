@@ -49,8 +49,32 @@
             });
         });
 
-        // Filters that apply immediately when changed.
-        document.querySelectorAll("[data-autosubmit]").forEach((input) => input.addEventListener("change", () => input.form.submit()));
+        // Filters that apply immediately when changed (requestSubmit also runs the submit handlers below).
+        document.querySelectorAll("[data-autosubmit]").forEach((input) => input.addEventListener("change", () => {
+            if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();
+        }));
+
+        // List filters: leave empty fields out of the address, so it stays short and readable.
+        document.querySelectorAll("form.list-toolbar").forEach((form) => form.addEventListener("submit", () => {
+            form.querySelectorAll("input[name], select[name]").forEach((field) => { if (field.value === "") field.disabled = true; });
+        }));
+        // Coming back with the browser's Back button: re-enable them.
+        window.addEventListener("pageshow", () => document.querySelectorAll("form.list-toolbar [name]:disabled").forEach((f) => { f.disabled = false; }));
+
+        // "/" jumps to the list search, unless the user is already typing somewhere.
+        const search = document.querySelector("[data-search-shortcut]");
+        if (search) document.addEventListener("keydown", (event) => {
+            const typing = event.target.closest("input, textarea, select, [contenteditable='true']");
+            if (event.key === "/" && !typing && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); search.focus(); search.select(); }
+        });
+
+        // Sub-menu headers are toggled by the template's menu script; keep "#" out of the address.
+        document.querySelectorAll("a[data-submenu-toggle]").forEach((link) => link.addEventListener("click", (event) => {
+            event.preventDefault();
+            const item = link.closest(".slide.has-sub");
+            const menu = item && item.querySelector(".slide-menu");
+            if (menu) setTimeout(() => link.setAttribute("aria-expanded", String(getComputedStyle(menu).display !== "none")), 350);
+        }));
 
         // Show only the credential fields for the selected SSH authentication method.
         document.querySelectorAll("[data-auth-switch]").forEach((select) => {
