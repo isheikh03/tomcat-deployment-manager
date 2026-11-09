@@ -34,8 +34,8 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-default" for="password">Password</label>
-                                <input class="form-control form-control-lg" type="password" id="password" name="password" autocomplete="new-password" required minlength="12">
-                                <div class="form-text">At least 12 characters; must not contain the username.</div>
+                                <input class="form-control form-control-lg" type="password" id="password" name="password" autocomplete="new-password" required th:attr="minlength=${minPasswordLength}">
+                                <div class="form-text" th:text="'At least ' + ${minPasswordLength} + ' characters; must not contain the username.'">At least 8 characters; must not contain the username.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-default" for="passwordConfirmation">Repeat password</label>

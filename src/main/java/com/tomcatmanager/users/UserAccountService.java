@@ -25,7 +25,11 @@ import java.util.Set;
 @Service
 public class UserAccountService {
     private static final Set<String> COMMON_PASSWORDS = Set.of("password", "passwort", "123456789012", "qwertyuiopas", "administrator",
-            "changeme1234", "letmein12345", "welcome12345", "tomcatmanager", "password1234");
+            "changeme1234", "letmein12345", "welcome12345", "tomcatmanager", "password1234",
+            // Common 8- to 11-character choices, now that 8 is the minimum.
+            "12345678", "123456789", "1234567890", "87654321", "qwertyui", "qwerty123", "1qaz2wsx", "abcd1234", "abc12345",
+            "password1", "password12", "passw0rd", "p@ssw0rd", "admin123", "admin1234", "changeme", "letmein1", "welcome1",
+            "iloveyou", "sunshine", "football", "baseball", "trustno1", "tomcat123", "tomcat1234");
 
     private final AppUserRepository users;
     private final PasswordEncoder encoder;
@@ -45,8 +49,11 @@ public class UserAccountService {
     public boolean anyUserExists() { return users.count() > 0; }
 
     /** Password rules; returns a message or null when acceptable. */
+    /** The configured minimum password length; never below 8, whatever is configured. */
+    public int minPasswordLength() { return Math.max(8, properties.minPasswordLength()); }
+
     public String passwordProblem(String username, String password) {
-        int min = Math.max(8, properties.minPasswordLength());
+        int min = minPasswordLength();
         if (password == null || password.length() < min) return "Use at least " + min + " characters.";
         if (password.length() > 128) return "Use at most 128 characters.";
         if (password.isBlank() || password.chars().distinct().count() < 4) return "Use a less predictable password (more different characters).";

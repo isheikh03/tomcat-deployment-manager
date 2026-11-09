@@ -17,7 +17,7 @@ public record SecurityProperties(
         @DefaultValue Bootstrap bootstrapAdmin,
         @DefaultValue("5") int maxFailedLogins,
         @DefaultValue("PT15M") Duration lockoutDuration,
-        @DefaultValue("12") int minPasswordLength) {
+        @DefaultValue("8") int minPasswordLength) {
 
     public record Bootstrap(String username, String password) {
         public boolean configured() { return username != null && !username.isBlank() && password != null && !password.isBlank(); }

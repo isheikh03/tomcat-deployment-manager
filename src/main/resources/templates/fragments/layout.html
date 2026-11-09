@@ -4,6 +4,8 @@
 <head th:fragment="head(title)">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The app's base path ("/" or e.g. "/tdm/"), so scripts can build links under any context path. -->
+    <meta name="app-base" th:content="@{/}">
     <meta name="_csrf" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title th:text="${title} + ' | Tomcat Deployment Manager'">Tomcat Deployment Manager</title>

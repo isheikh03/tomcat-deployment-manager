@@ -23,6 +23,10 @@ public class AccountController {
         this.accounts = accounts; this.bootstrap = bootstrap; this.secureCookie = secureCookie;
     }
 
+    /** Shown in the password hints of the setup and change-password pages. */
+    @org.springframework.web.bind.annotation.ModelAttribute("minPasswordLength")
+    public int minPasswordLength() { return accounts.minPasswordLength(); }
+
     @GetMapping("/login")
     public String login(Model model) {
         if (bootstrap.setupOpen()) return "redirect:/setup";

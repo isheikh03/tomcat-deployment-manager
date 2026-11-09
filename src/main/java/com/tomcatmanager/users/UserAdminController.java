@@ -77,7 +77,7 @@ public class UserAdminController {
         model.addAttribute("pageTitle", form.isNew() ? "Create user" : "Edit user " + form.getUsername());
         model.addAttribute("form", form);
         model.addAttribute("roles", Role.values());
-        model.addAttribute("minPasswordLength", Math.max(8, properties.minPasswordLength()));
+        model.addAttribute("minPasswordLength", accounts.minPasswordLength());
         return "admin/user-form";
     }
 }
