@@ -1,0 +1,30 @@
+{
+  "properties": [
+    {
+      "name": "app.security.encryption-key",
+      "type": "java.lang.String",
+      "description": "AES-256-GCM key for stored credentials: Base64 of 32 random bytes. Set it with TDL_APP_ENCRYPTION_KEY; never commit it."
+    },
+    {
+      "name": "app.security.encryption-key-previous",
+      "type": "java.lang.String",
+      "description": "Previous encryption key during a key rotation (decrypt only). Remove it after re-encrypting the credentials under Settings."
+    },
+    {
+      "name": "app.notifications.email-from",
+      "type": "java.lang.String",
+      "description": "Sender address of notification emails.",
+      "defaultValue": "tomcat-deployment-manager@localhost"
+    },
+    {
+      "name": "app.notifications.base-url",
+      "type": "java.lang.String",
+      "description": "Public base URL for links in notification emails, including any context path, e.g. https://deploy.example.com/tdm."
+    },
+    {
+      "name": "app.display-time-zone",
+      "type": "java.lang.String",
+      "description": "Time zone for displayed timestamps (stored in UTC), e.g. Asia/Dhaka. Empty means the server's time zone."
+    }
+  ]
+}
