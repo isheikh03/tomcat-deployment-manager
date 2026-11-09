@@ -24,7 +24,7 @@
             const item = el("div", "notification-item d-flex gap-2" + (n.unread ? " unread" : ""));
             const body = el(n.link ? "a" : "div", "flex-grow-1 min-w-0 text-reset text-decoration-none");
             if (n.link) {
-                body.href = n.link;
+                body.href = appUrl(n.link);
                 // Opening an unread notification marks it read; keepalive lets the request finish while the page changes.
                 if (n.unread) body.addEventListener("click", () => { apiFetch(readUrl(n.id), { method: "POST", keepalive: true }).catch(() => {}); });
             }

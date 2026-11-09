@@ -5,6 +5,17 @@
     const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
     const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
 
+    /**
+     * Turns an application path from the server (for example "/deployments/5") into a link that works under the
+     * context path the app is deployed at. Full URLs and relative links are returned unchanged.
+     */
+    const appBase = document.querySelector('meta[name="app-base"]')?.content || "/";
+    window.appUrl = function (path) {
+        if (typeof path !== "string" || !path.startsWith("/") || path.startsWith("//")) return path;
+        if (appBase !== "/" && (path + "/").startsWith(appBase)) return path;   // already includes the context path
+        return (appBase.endsWith("/") ? appBase.slice(0, -1) : appBase) + path;
+    };
+
     /** fetch() wrapper that sends the CSRF token and parses JSON errors into Error objects. */
     window.apiFetch = async function (url, options = {}) {
         const headers = Object.assign({ "Accept": "application/json" }, options.headers || {});

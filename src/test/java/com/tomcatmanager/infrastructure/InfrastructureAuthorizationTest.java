@@ -94,6 +94,14 @@ class InfrastructureAuthorizationTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("No server groups yet")));
     }
 
+    @Test void pagesTellScriptsTheContextPath() throws Exception {
+        mvc.perform(get("/tdm/infrastructure/hosts").contextPath("/tdm").with(user("viewer").roles("VIEWER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<meta name=\"app-base\" content=\"/tdm/\">")));
+        mvc.perform(get("/infrastructure/hosts").with(user("viewer").roles("VIEWER")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<meta name=\"app-base\" content=\"/\">")));
+    }
+
     @Test void adminSeesListActions() throws Exception {
         org.mockito.Mockito.when(hosts.findAllByOrderByNameAsc()).thenReturn(java.util.List.of(InfrastructureListingTest.host(1, "Web Server", "10.0.0.5", true, true)));
         mvc.perform(get("/infrastructure/hosts").with(user("admin").roles("ADMIN")))

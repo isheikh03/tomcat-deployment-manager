@@ -137,7 +137,7 @@
                 window.removeEventListener("beforeunload", leaveGuard);
                 label.textContent = "Release created.";
                 bar.classList.add("bg-success");
-                window.location.href = body.url + "?uploaded=1";
+                window.location.href = appUrl(body.url) + "?uploaded=1";
                 return;
             }
             finish();
@@ -172,7 +172,7 @@
         if (status === 0) message = "The connection was interrupted. Nothing was saved; please try again.";
         if (status === 401) message = "Your session has expired. Sign in again and repeat the upload.";
         if (status === 403) message = "Your role is not allowed to upload releases.";
-        const link = body && body.link ? { href: body.link, text: "Open the existing release" } : null;
+        const link = body && body.link ? { href: appUrl(body.link), text: "Open the existing release" } : null;
         container.replaceChildren(alert(status === 409 ? "warning" : "danger", message, link));
     }
 

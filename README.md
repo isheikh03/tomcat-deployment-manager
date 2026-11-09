@@ -547,7 +547,7 @@ connect is not fully prevented.
   restart. The settings page shows only key **fingerprints** (first 8 hex characters of SHA-256),
   never keys. Never reuse a development key elsewhere.
 - **Roles:** see *Users and roles*. Rules are enforced on the server in `SecurityConfig`, not by hiding buttons.
-- **Accounts:** BCrypt (cost 12) password hashes; at least 12 characters, not containing the
+- **Accounts:** BCrypt (cost 12) password hashes; at least 8 characters (`PASSWORD_MIN_LENGTH`), not containing the
   username, not trivially repetitive or common; lockout after `LOGIN_MAX_FAILED_ATTEMPTS` (5) wrong
   passwords for `LOGIN_LOCKOUT_DURATION` (15 min); the sign-in page never says which part was wrong.
   New and reset passwords are temporary and must be changed before anything else. Disabling a user or
@@ -571,11 +571,11 @@ connect is not fully prevented.
 | `APP_ENCRYPTION_KEY_PREVIOUS` | Old key during a rotation (decrypt only); remove after re-encryption |
 | `APP_BOOTSTRAP_ADMIN_USERNAME`, `APP_BOOTSTRAP_ADMIN_PASSWORD` | First administrator when no account exists (temporary password) |
 | `APP_DEV_USERS` | Development only: seed admin/operator/viewer (default `false`) |
-| `LOGIN_MAX_FAILED_ATTEMPTS`, `LOGIN_LOCKOUT_DURATION`, `PASSWORD_MIN_LENGTH` | Lockout (default 5, `PT15M`) and minimum password length (12) |
+| `LOGIN_MAX_FAILED_ATTEMPTS`, `LOGIN_LOCKOUT_DURATION`, `PASSWORD_MIN_LENGTH` | Lockout (default 5, `PT15M`) and minimum password length (8; values below 8 are raised to 8) |
 | `SERVER_PORT` | HTTP port (default 8181) |
 | `TDL_SESSION_COOKIE_SECURE`, `SESSION_TIMEOUT` | `true` only when browsers use HTTPS (on plain HTTP sign-in cannot work); idle session timeout (default `30m`) |
 | `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD`, `SPRING_MAIL_STARTTLS` | Optional SMTP server for notification email |
-| `NOTIFICATION_EMAIL_FROM`, `APP_BASE_URL` | Sender address; public URL for links in emails |
+| `NOTIFICATION_EMAIL_FROM`, `APP_BASE_URL` | Sender address; public URL for links in emails, including any context path (e.g. `https://host/tdm`) |
 | `APP_TIME_ZONE` | Display time zone (timestamps are stored in UTC) |
 | `CONNECTION_*`, `TLS_*` | See connectivity sections above |
 | `TDL_DEPLOYMENT_BACKUP_DIR` | Backups of replaced WARs (default `./var/backups`); private, backed up, outside the app directory in production |
