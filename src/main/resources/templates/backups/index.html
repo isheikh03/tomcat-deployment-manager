@@ -14,7 +14,6 @@
             <p class="text-secondary mb-0">What each deployment can be rolled back to. Roll back from the deployment's page, on its target.</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-danger" th:href="@{/backups/cleanup}"><i class="bx bx-trash me-1"></i>Clean up backups</a>
             <a class="btn btn-outline-primary" th:href="@{/deployments}">Deployment history</a>
         </div>
     </div>
@@ -28,18 +27,37 @@
     </div>
     <p class="small text-secondary mb-3">Stored in <code th:text="${backupDir}"></code> (read-only files, SHA-256 recorded). Retention never removes the current rollback point of a deployment; an administrator can delete it after an explicit confirmation.</p>
 
+    <form class="filter-bar mb-3" method="get" th:action="@{/backups}" th:if="${!#maps.isEmpty(instances)}">
+        <select class="form-select filter-app" name="instance" aria-label="Tomcat instance" data-autosubmit>
+            <option value="">All instances</option>
+            <option th:each="i : ${instances}" th:value="${i.key}" th:text="${i.value}" th:selected="${i.key == instance}"></option>
+        </select>
+        <a class="btn btn-link btn-sm" th:href="@{/backups}" th:if="${instance != null}">Show all instances</a>
+    </form>
+
     <section class="panel empty-state" th:if="${#lists.isEmpty(entries)}">
         <div class="empty-icon"><i class="bx bx-history"></i></div>
-        <h2 class="h6">No restore points yet</h2>
-        <p class="text-secondary small mb-0">When a deployment replaces an application, the current WAR is backed up first (or the previous library release is recorded). Those restore points appear here.</p>
+        <h2 class="h6" th:text="${instance != null} ? 'No restore points for this instance' : 'No restore points yet'">No restore points yet</h2>
+        <p class="text-secondary small mb-0" th:if="${instance == null}">When a deployment replaces an application, the current WAR is backed up first (or the previous library release is recorded). Those restore points appear here.</p>
+        <a class="btn btn-light border btn-sm mt-3" th:href="@{/backups}" th:if="${instance != null}">Show all instances</a>
     </section>
 
-    <section class="panel p-0" th:unless="${#lists.isEmpty(entries)}">
+    <!-- Administrators select several server backups and delete them together; rows also keep their own actions. -->
+    <form method="post" th:action="@{/backups/cleanup}" th:unless="${#lists.isEmpty(entries)}"
+          data-confirm="Delete the selected backups? Their files are removed permanently; the deployment history keeps a record that they existed.">
+        <input type="hidden" name="instance" th:value="${instance}" th:if="${instance != null}">
+    <section class="panel p-0" th:classappend="${#authorization.expression('hasRole(''ADMIN'')')} ? ' mb-3'">
         <div class="table-responsive">
             <table class="table align-middle mb-0">
-                <thead><tr><th>Instance · context</th><th>Restore point</th><th>Taken</th><th>Integrity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <thead><tr>
+                    <th sec:authorize="hasRole('ADMIN')" style="width:36px"><input type="checkbox" class="form-check-input" data-check-all="backupIds" aria-label="Select all deletable backups"></th>
+                    <th>Instance · context</th><th>Restore point</th><th>Taken</th><th>Integrity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
                 <tbody>
                 <tr th:each="e : ${entries}" th:attr="data-backup-row=${e.backup().id}">
+                    <td sec:authorize="hasRole('ADMIN')">
+                        <input th:if="${e.serverBackup()}" type="checkbox" class="form-check-input" name="backupIds" th:value="${e.backup().id}" th:disabled="${e.rollbackPoint()}"
+                               th:attr="data-bytes=${e.backup().sizeBytes != null ? e.backup().sizeBytes : 0},aria-label='Select the backup of ' + ${e.target().targetFilename} + ' on ' + ${e.target().instanceName}"
+                               th:title="${e.rollbackPoint()} ? 'Current rollback point: delete it with its own Delete button (needs confirmation)' : null"></td>
                     <td><strong th:text="${e.target().instanceName}"></strong>
                         <div class="small"><code th:text="${e.target().contextPath}"></code> <span class="text-secondary" th:text="${e.target().targetFilename}"></span></div></td>
                     <td class="small">
@@ -71,6 +89,21 @@
             </table>
         </div>
     </section>
+    <section class="panel" sec:authorize="hasRole('ADMIN')">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="reason">Reason for deleting the selected backups <span class="text-secondary small">(recorded in the audit and deployment logs)</span></label>
+                <input class="form-control" id="reason" name="reason" required minlength="5" maxlength="300" placeholder="e.g. old backups, disk almost full">
+            </div>
+            <div class="col-md-6 d-flex flex-wrap gap-2 align-items-center">
+                <button class="btn btn-danger" data-requires-selection="backupIds" disabled><i class="bx bx-trash me-1"></i>Delete selected backups</button>
+                <span class="small fw-semibold" data-selection-summary="backupIds">Nothing selected</span>
+            </div>
+        </div>
+        <p class="small text-secondary mb-0 mt-2">Select server backups in the first column. A current rollback point cannot be selected; delete it with its own
+            <strong>Delete</strong> button, which asks for confirmation. Each selected backup is checked again before deletion, and one that became a rollback point in the meantime is skipped.</p>
+    </section>
+    </form>
 </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

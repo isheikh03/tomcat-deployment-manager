@@ -614,7 +614,7 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
         var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(web)
                 .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity()).build();
         var admin = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN");
-        String page = mvc.perform(get("/releases/cleanup").with(admin)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String page = mvc.perform(get("/releases").param("tab", "storage").with(admin)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(page).contains("Portal").contains("1.1").contains("Can be removed").contains("In use · kept").contains("Nothing selected");
         assertThat(page).as("nothing is preselected").doesNotContainPattern("name=\"artifactIds\"[^>]*checked");
         assertThat(mvc.perform(get("/releases/" + releaseA.getId()).with(admin)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
@@ -640,9 +640,9 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
         List<BackupService.Entry> onA = cleanup.serverBackups(a.getId());
         assertThat(onA).hasSize(2).allSatisfy(e -> assertThat(e.target().getInstanceId()).isEqualTo(a.getId()));
         assertThat(cleanup.serverBackups(b.getId())).hasSize(1).allSatisfy(e -> assertThat(e.rollbackPoint()).isTrue());
-        String backupPage = mvc.perform(get("/backups/cleanup").param("instance", String.valueOf(a.getId())).with(admin))
+        String backupPage = mvc.perform(get("/backups").param("instance", String.valueOf(a.getId())).with(admin))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        assertThat(backupPage).contains("Rollback point · kept").contains("Can be deleted").doesNotContain("tomcat-b</td>");
+        assertThat(backupPage).contains("Current rollback point").contains("Delete selected backups").doesNotContain("<strong>tomcat-b</strong>");
 
         long oldOnA = onA.stream().filter(e -> !e.rollbackPoint()).findFirst().orElseThrow().backup().getId();
         long pointOnA = onA.stream().filter(BackupService.Entry::rollbackPoint).findFirst().orElseThrow().backup().getId();
@@ -651,7 +651,7 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
                         .param("instance", String.valueOf(a.getId())).with(admin)
                         .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/backups/cleanup?instance=" + a.getId()));
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/backups?instance=" + a.getId()));
         assertThat(cleanup.serverBackups(a.getId())).extracting(e -> e.backup().getId()).containsExactly(pointOnA);
         assertThat(backups.findByDeletedAtIsNullOrderByCreatedAtDesc()).hasSize(2);
     }

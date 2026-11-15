@@ -103,6 +103,21 @@
         // Coming back with the browser's Back button: re-enable them.
         window.addEventListener("pageshow", () => document.querySelectorAll("form.list-toolbar [name]:disabled").forEach((f) => { f.disabled = false; }));
 
+        // Page tabs (e.g. Release library: Releases / Storage cleanup): the open tab is kept in the address and in the
+        // filter form ([data-tab-param]), so reloading, filtering or coming back after an action shows the same tab.
+        document.querySelectorAll("[data-bs-toggle='tab'][data-tab-name]").forEach((tab) => tab.addEventListener("shown.bs.tab", () => {
+            const name = tab.dataset.tabName;
+            document.querySelectorAll("input[data-tab-param]").forEach((input) => { input.value = name; });
+            const url = new URL(window.location.href);
+            if (name) url.searchParams.set("tab", name); else url.searchParams.delete("tab");
+            window.history.replaceState(null, "", url);
+        }));
+        // Buttons elsewhere on the page that open a tab: data-show-tab="#tab-id".
+        document.querySelectorAll("[data-show-tab]").forEach((button) => button.addEventListener("click", () => {
+            const tab = document.querySelector("[data-bs-toggle='tab'][data-bs-target='" + button.dataset.showTab + "']");
+            if (tab && window.bootstrap) { bootstrap.Tab.getOrCreateInstance(tab).show(); tab.scrollIntoView({ behavior: "smooth", block: "start" }); }
+        }));
+
         // "/" jumps to the list search, unless the user is already typing somewhere.
         const search = document.querySelector("[data-search-shortcut]");
         if (search) document.addEventListener("keydown", (event) => {

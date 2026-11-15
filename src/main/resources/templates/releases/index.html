@@ -31,7 +31,7 @@
         <span th:text="'Release files: ' + ${storedSize} + ' in ' + ${storedCount} + ' file' + (${storedCount == 1} ? '' : 's')"></span>
         <span class="text-secondary" th:if="${removedCount > 0}" th:text="'· ' + ${removedCount} + ' removed to free space'"></span>
         <span class="text-secondary" th:text="'· ' + ${freeSpace} + ' free on disk'"></span>
-        <a class="btn btn-outline-danger btn-sm ms-1" th:href="@{/releases/cleanup}"><i class="bx bx-trash me-1"></i>Clean up storage</a>
+        <button type="button" class="btn btn-outline-danger btn-sm ms-1" data-show-tab="#tab-storage"><i class="bx bx-trash me-1"></i>Clean up storage</button>
     </div>
 
     <form class="filter-bar mb-3" method="get" th:action="@{/releases}" role="search">
@@ -44,10 +44,31 @@
             <input class="form-check-input" type="checkbox" role="switch" id="archived" name="archived" value="true" th:checked="${archived}" data-autosubmit>
             <label class="form-check-label small" for="archived">Show archived</label>
         </div>
+        <!-- Keeps the open tab when the filter is applied (updated by the tab switch). -->
+        <input sec:authorize="hasRole('ADMIN')" type="hidden" name="tab" th:value="${storageTab} ? 'storage' : ''" data-tab-param>
         <button class="btn btn-outline-secondary" type="submit">Search</button>
-        <a class="btn btn-link" th:if="${filtered}" th:href="@{/releases}">Clear filters</a>
+        <a class="btn btn-link" th:if="${filtered}" th:href="${storageTab == true} ? @{/releases(tab='storage')} : @{/releases}">Clear filters</a>
     </form>
 
+    <!-- Administrators get a second tab to remove WAR files from storage; everyone else sees just the releases. -->
+    <ul class="nav nav-tabs list-tabs mb-3" role="tablist" sec:authorize="hasRole('ADMIN')">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" th:classappend="${storageTab} ? '' : ' active'" id="releases-tab" type="button" role="tab"
+                    data-bs-toggle="tab" data-bs-target="#tab-releases" aria-controls="tab-releases" data-tab-name=""
+                    th:attr="aria-selected=${!storageTab}"><i class="bx bx-package me-1"></i>Releases
+                <span class="badge text-bg-light border ms-1" th:text="${releases.totalElements}">0</span></button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" th:classappend="${storageTab} ? ' active' : ''" id="storage-tab" type="button" role="tab"
+                    data-bs-toggle="tab" data-bs-target="#tab-storage" aria-controls="tab-storage" data-tab-name="storage"
+                    th:attr="aria-selected=${storageTab}"><i class="bx bx-hdd me-1"></i>Storage cleanup
+                <span class="badge ms-1" th:classappend="${removableCount > 0} ? ' text-bg-warning' : ' text-bg-light border'"
+                      th:text="${removableCount}" th:title="${removableCount} + ' file(s) can be removed'">0</span></button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+    <div class="tab-pane fade" id="tab-releases" role="tabpanel" aria-labelledby="releases-tab" th:classappend="${storageTab == true} ? '' : ' show active'">
     <section class="panel empty-state" th:if="${releases.totalElements == 0}">
         <div class="empty-icon"><i class="bx bx-package"></i></div>
         <th:block th:if="${!filtered}">
@@ -98,6 +119,69 @@
             </nav>
         </div>
     </section>
+    </div>
+
+    <div sec:authorize="hasRole('ADMIN')" class="tab-pane fade" id="tab-storage" role="tabpanel" aria-labelledby="storage-tab"
+         th:classappend="${storageTab} ? ' show active' : ''">
+        <p class="small text-secondary mb-3">Select the release versions whose WAR file you want to remove, one or several at a time.
+            Release records, deployment history and the audit trail are kept; a removed file is restored by uploading the identical WAR again.
+            <span th:if="${app != null or !#strings.isEmpty(q)}">The list follows the filter above.</span></p>
+
+        <section class="panel empty-state" th:if="${#lists.isEmpty(files)}">
+            <div class="empty-icon"><i class="bx bx-hdd"></i></div>
+            <h2 class="h6">No release files</h2>
+            <p class="text-secondary small mb-0">No stored WAR file matches this filter.</p>
+        </section>
+
+        <form method="post" th:action="@{/releases/cleanup}" th:unless="${#lists.isEmpty(files)}"
+              data-confirm="Remove the WAR files of the selected releases? Their records and history are kept, but they cannot be deployed until the identical WAR is uploaded again.">
+            <input type="hidden" name="app" th:value="${app}" th:if="${app != null}">
+            <input type="hidden" name="q" th:value="${q}" th:unless="${#strings.isEmpty(q)}">
+            <section class="panel p-0 mb-3">
+                <div class="table-responsive"><table class="table align-middle mb-0">
+                    <thead><tr>
+                        <th style="width:36px"><input type="checkbox" class="form-check-input" data-check-all="artifactIds" aria-label="Select all removable files"></th>
+                        <th>Release version</th><th class="text-end">Size</th><th>Status</th><th>Last deployed</th><th>Uploaded</th></tr></thead>
+                    <tbody>
+                    <tr th:each="f : ${files}" th:with="first=${f.releases()[0]}" th:classappend="${f.state().name() != 'STORED'} ? ' text-secondary'">
+                        <td><input type="checkbox" class="form-check-input" name="artifactIds" th:value="${f.artifact().id}"
+                                   th:disabled="${f.state().name() != 'STORED'}" th:attr="data-bytes=${f.artifact().sizeBytes},aria-label='Select ' + ${f.releaseNames()}"></td>
+                        <td><th:block th:each="r, it : ${f.releases()}"><a th:href="@{/releases/{id}(id=${r.id})}"><span th:text="${r.application.name}"></span>
+                            <strong th:text="${r.versionLabel}"></strong></a><span th:unless="${it.last}">, </span></th:block>
+                            <div class="small text-secondary"><code th:text="${first.originalFilename}"></code> · <span class="font-monospace" th:text="${#strings.substring(f.artifact().sha256, 0, 12)} + '…'"></span></div></td>
+                        <td class="text-end text-nowrap" th:text="${f.size()}"></td>
+                        <td class="small">
+                            <span th:if="${f.state().name() == 'STORED'}" class="badge text-bg-light border">Can be removed</span>
+                            <th:block th:if="${f.state().name() == 'RUNNING'}"><span class="badge text-bg-info">In use · kept</span>
+                                <div th:text="${#strings.listJoin(f.reasons(), '; ')}"></div></th:block>
+                            <th:block th:if="${f.state().name() == 'ROLLBACK_POINT'}"><span class="badge text-bg-warning">Rollback point</span>
+                                <div th:text="${#strings.listJoin(f.reasons(), '; ')}"></div>
+                                <a th:href="@{/releases/{id}(id=${first.id})}">Remove on its release page (needs confirmation)</a></th:block>
+                            <span th:if="${f.state().name() == 'REMOVED'}" class="badge text-bg-secondary">File removed</span>
+                        </td>
+                        <td class="small text-nowrap" th:text="${f.lastDeployedAt() != null} ? ${@time.format(f.lastDeployedAt())} : 'Never'"></td>
+                        <td class="small text-nowrap" th:text="${@time.format(first.uploadedAt)}"></td>
+                    </tr>
+                    </tbody>
+                </table></div>
+            </section>
+            <section class="panel mb-3">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label" for="reason">Reason <span class="text-secondary small">(recorded in the audit log)</span></label>
+                        <input class="form-control" id="reason" name="reason" required minlength="5" maxlength="300" placeholder="e.g. old versions, disk almost full">
+                    </div>
+                    <div class="col-md-6 d-flex flex-wrap gap-2 align-items-center">
+                        <button class="btn btn-danger" data-requires-selection="artifactIds" disabled><i class="bx bx-trash me-1"></i>Remove selected files</button>
+                        <span class="small fw-semibold" data-selection-summary="artifactIds">Nothing selected</span>
+                    </div>
+                </div>
+                <p class="small text-secondary mb-0 mt-2">Each selected file is checked again before removal; one that came into use in the meantime is skipped.
+                    The current version of an instance is never removed.</p>
+            </section>
+        </form>
+    </div>
+    </div>
 </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
