@@ -1,6 +1,7 @@
 package com.tomcatmanager.release;
 
 import com.tomcatmanager.application.ApplicationRepository;
+import com.tomcatmanager.deployment.StorageCleanupService;
 import com.tomcatmanager.infrastructure.TomcatInstance;
 import com.tomcatmanager.infrastructure.TomcatInstanceRepository;
 import org.springframework.data.domain.Page;
@@ -26,12 +27,23 @@ public class ReleaseController {
     private final StorageHousekeeping housekeeping;
     private final StoredArtifactRepository artifacts;
     private final com.tomcatmanager.deployment.DeploymentRunRepository deploymentRuns;
+    private final StorageCleanupService cleanup;
 
     public ReleaseController(ReleaseService service, ReleaseRepository releases, ApplicationRepository applications,
                              TomcatInstanceRepository instances, ArtifactStorage storage, StorageHousekeeping housekeeping,
-                             StoredArtifactRepository artifacts, com.tomcatmanager.deployment.DeploymentRunRepository deploymentRuns) {
+                             StoredArtifactRepository artifacts, com.tomcatmanager.deployment.DeploymentRunRepository deploymentRuns,
+                             StorageCleanupService cleanup) {
         this.service = service; this.releases = releases; this.applications = applications; this.instances = instances; this.storage = storage;
-        this.housekeeping = housekeeping; this.artifacts = artifacts; this.deploymentRuns = deploymentRuns;
+        this.housekeeping = housekeeping; this.artifacts = artifacts; this.deploymentRuns = deploymentRuns; this.cleanup = cleanup;
+    }
+
+    /** Disk usage of the release store, shown to administrators above the library and on the cleanup page. */
+    private void storageOverview(Model model) {
+        model.addAttribute("storedSize", ArtifactStorage.humanSize(artifacts.totalStoredBytes()));
+        model.addAttribute("storedCount", artifacts.countByFileRemovedAtIsNull());
+        model.addAttribute("removedCount", artifacts.countByFileRemovedAtIsNotNull());
+        long free = storage.usableSpace();
+        model.addAttribute("freeSpace", free < 0 ? "unknown" : ArtifactStorage.humanSize(free));
     }
 
     @GetMapping
@@ -45,6 +57,7 @@ public class ReleaseController {
         model.addAttribute("q", q);
         model.addAttribute("archived", archived);
         model.addAttribute("filtered", app != null || !q.isBlank() || archived);
+        storageOverview(model);
         housekeeping.lastReport().ifPresent(report -> {
             model.addAttribute("storageReport", report);
             model.addAttribute("missingReleases", report.missing().stream().map(artifacts::findBySha256).flatMap(java.util.Optional::stream)
@@ -82,6 +95,7 @@ public class ReleaseController {
         model.addAttribute("compatibility", rows);
         model.addAttribute("sharing", sharing);
         model.addAttribute("deployments", deploymentRuns.findByReleaseIdOrderByRequestedAtDesc(id));
+        model.addAttribute("releaseFile", cleanup.describe(release));
         return "releases/detail";
     }
 
@@ -108,6 +122,47 @@ public class ReleaseController {
         else flash.addFlashAttribute("success", "Storage check passed: every release file is present"
                 + (report.tempFilesRemoved() + report.orphanFilesRemoved() > 0 ? "; removed " + report.tempFilesRemoved() + " temporary and " + report.orphanFilesRemoved() + " orphaned file(s)." : "."));
         return "redirect:/releases";
+    }
+
+    /** Removes the stored WAR file of a release to free space; the release and its history are kept (administrators). */
+    @PostMapping("/{id}/remove-file")
+    public String removeFile(@PathVariable long id, @RequestParam(required = false) String reason,
+                             @RequestParam(defaultValue = "false") boolean confirmRollbackPoint, Principal principal, RedirectAttributes flash) {
+        try {
+            cleanup.removeReleaseFile(id, principal.getName(), reason, confirmRollbackPoint);
+            flash.addFlashAttribute("success", "The WAR file was removed from storage. The release and its deployment history are kept; "
+                    + "upload the identical WAR again to make it deployable.");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            flash.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/releases/" + id;
+    }
+
+    /** Release files on disk, to select individual versions for removal (administrators). Nothing is preselected. */
+    @GetMapping("/cleanup")
+    public String cleanupSelect(@RequestParam(required = false) Long app, @RequestParam(defaultValue = "") String q, Model model) {
+        model.addAttribute("pageTitle", "Clean up release storage");
+        model.addAttribute("files", cleanup.releaseFiles(app, q));
+        model.addAttribute("applications", applications.findAllByOrderByNameAsc());
+        model.addAttribute("app", app);
+        model.addAttribute("q", q);
+        storageOverview(model);
+        return "releases/cleanup";
+    }
+
+    @PostMapping("/cleanup")
+    public String cleanupConfirm(@RequestParam(name = "artifactIds", required = false) List<Long> artifactIds,
+                                 @RequestParam(required = false) String reason, @RequestParam(required = false) Long app,
+                                 @RequestParam(defaultValue = "") String q, Principal principal, RedirectAttributes flash) {
+        try {
+            StorageCleanupService.Result result = cleanup.removeReleaseFiles(artifactIds, principal.getName(), reason);
+            flash.addFlashAttribute(result.removed() > 0 && result.problems().isEmpty() ? "success" : "error", result.message("WAR file"));
+        } catch (IllegalArgumentException e) {
+            flash.addFlashAttribute("error", e.getMessage());
+        }
+        if (app != null) flash.addAttribute("app", app); // back to the same filtered list
+        if (!q.isBlank()) flash.addAttribute("q", q);
+        return "redirect:/releases/cleanup";
     }
 
     @PostMapping("/{id}/archive")

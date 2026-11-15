@@ -13,11 +13,15 @@
             <h1 class="h3 mb-1">Restore points</h1>
             <p class="text-secondary mb-0">What each deployment can be rolled back to. Roll back from the deployment's page, on its target.</p>
         </div>
-        <a class="btn btn-outline-primary" th:href="@{/deployments}">Deployment history</a>
+        <div class="d-flex gap-2 flex-wrap">
+            <a sec:authorize="hasRole('ADMIN')" class="btn btn-outline-danger" th:href="@{/backups/cleanup}"><i class="bx bx-trash me-1"></i>Clean up backups</a>
+            <a class="btn btn-outline-primary" th:href="@{/deployments}">Deployment history</a>
+        </div>
     </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
 
     <div class="row g-3 mb-3">
-        <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Server backups</div><div class="metric-value" th:text="${serverBackupCount}">0</div><div class="metric-note" th:text="${totalSize} + ' on disk'"></div></div></div>
+        <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Server backups</div><div class="metric-value" th:text="${serverBackupCount}">0</div><div class="metric-note" th:text="${totalSize} + ' on disk · ' + ${freeSpace} + ' free'"></div></div></div>
         <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Current rollback points</div><div class="metric-value" th:text="${protectedCount}">0</div><div class="metric-note">Kept by retention; deletable with confirmation</div></div></div>
         <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Missing files</div><div class="metric-value" th:classappend="${missingCount > 0} ? ' text-danger'" th:text="${missingCount}">0</div><div class="metric-note">Should be 0</div></div></div>
         <div class="col-6 col-lg-3"><div class="metric-card"><div class="metric-label">Retention</div><div class="metric-value" th:text="${retention > 0} ? ${retention} : '∞'">10</div><div class="metric-note">Server backups kept per context</div></div></div>

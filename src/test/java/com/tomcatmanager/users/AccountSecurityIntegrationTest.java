@@ -120,7 +120,9 @@ class AccountSecurityIntegrationTest extends DatabaseIntegrationTest {
         for (String page : new String[] {"/admin/users", "/admin/audit", "/admin/settings", "/admin/users/1/edit", "/notifications", "/account", "/"})
             mvc.perform(get(page).with(user("root").roles("ADMIN", "DEPLOYMENT_OPERATOR"))).andExpect(status().isOk());
         mvc.perform(post("/admin/users/save").with(csrf()).with(user("vera").roles("VIEWER")).param("username", "x")).andExpect(status().isForbidden());
-        mvc.perform(post("/login").param("username", "root").param("password", PASSWORD)).andExpect(status().isForbidden());
+        // Without a CSRF token the sign-in is refused: the user is sent back to the login page to retry (not signed in).
+        mvc.perform(post("/login").param("username", "root").param("password", PASSWORD))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/login?retry"));
     }
 
     @Test void theLastAdministratorCannotBeDemotedAndNobodyDemotesThemselves() {

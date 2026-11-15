@@ -60,6 +60,37 @@
             });
         });
 
+        // Selection lists: data-check-all="<name>" toggles every enabled checkbox of that name in the same form;
+        // [data-selection-summary="<name>"] shows "N selected · size" (from data-bytes) and
+        // [data-requires-selection="<name>"] buttons stay disabled until something is selected.
+        const human = (b) => { const u = ["B", "KB", "MB", "GB", "TB"]; let i = 0; while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; } return (i ? b.toFixed(1) : b) + " " + u[i]; };
+        document.querySelectorAll("form").forEach((form) => {
+            const names = new Set([...form.querySelectorAll("[data-check-all],[data-selection-summary],[data-requires-selection]")]
+                .map((el) => el.dataset.checkAll || el.dataset.selectionSummary || el.dataset.requiresSelection));
+            names.forEach((name) => {
+                const boxes = () => [...form.querySelectorAll("input[type=checkbox][name='" + name + "']")];
+                const sync = () => {
+                    const chosen = boxes().filter((b) => b.checked && !b.disabled);
+                    const bytes = chosen.reduce((sum, b) => sum + Number(b.dataset.bytes || 0), 0);
+                    form.querySelectorAll("[data-selection-summary='" + name + "']").forEach((el) => {
+                        el.textContent = chosen.length ? chosen.length + " selected · " + human(bytes) : "Nothing selected";
+                    });
+                    form.querySelectorAll("[data-requires-selection='" + name + "']").forEach((el) => { el.disabled = chosen.length === 0; });
+                    const enabled = boxes().filter((b) => !b.disabled);
+                    form.querySelectorAll("input[data-check-all='" + name + "']").forEach((all) => {
+                        all.checked = enabled.length > 0 && enabled.every((b) => b.checked);
+                        all.indeterminate = chosen.length > 0 && !all.checked;
+                    });
+                };
+                form.querySelectorAll("input[data-check-all='" + name + "']").forEach((all) => all.addEventListener("change", () => {
+                    boxes().filter((b) => !b.disabled).forEach((b) => { b.checked = all.checked; });
+                    sync();
+                }));
+                boxes().forEach((b) => b.addEventListener("change", sync));
+                sync();
+            });
+        });
+
         // Filters that apply immediately when changed (requestSubmit also runs the submit handlers below).
         document.querySelectorAll("[data-autosubmit]").forEach((input) => input.addEventListener("change", () => {
             if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();

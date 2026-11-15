@@ -42,6 +42,23 @@ class ReleaseAuthorizationTest {
     @MockitoBean StorageHousekeeping housekeeping;
     @MockitoBean StoredArtifactRepository artifacts;
     @MockitoBean com.tomcatmanager.deployment.DeploymentRunRepository deploymentRuns;
+    @MockitoBean com.tomcatmanager.deployment.StorageCleanupService cleanup;
+
+    @Test void onlyAdministratorsCleanUpReleaseStorage() throws Exception {
+        for (String role : new String[]{"VIEWER", "DEPLOYMENT_OPERATOR"}) {
+            mvc.perform(get("/releases/cleanup").with(user("u").roles(role))).andExpect(status().isForbidden());
+            mvc.perform(post("/releases/cleanup").param("artifactIds", "1").param("reason", "free disk space")
+                    .with(csrf()).with(user("u").roles(role))).andExpect(status().isForbidden());
+            mvc.perform(post("/releases/1/remove-file").param("reason", "free disk space").with(csrf()).with(user("u").roles(role)))
+                    .andExpect(status().isForbidden());
+        }
+        verify(cleanup, never()).removeReleaseFile(org.mockito.ArgumentMatchers.anyLong(), anyString(), anyString(), org.mockito.ArgumentMatchers.anyBoolean());
+        verify(cleanup, never()).removeReleaseFiles(any(), anyString(), anyString());
+
+        mvc.perform(post("/releases/1/remove-file").param("reason", "free disk space").with(csrf()).with(user("admin").roles("ADMIN")))
+                .andExpect(status().is3xxRedirection());
+        verify(cleanup).removeReleaseFile(1L, "admin", "free disk space", false);
+    }
 
     private static MockMultipartFile war() { return new MockMultipartFile("file", "app-1.0.war", "application/octet-stream", new byte[]{1, 2, 3}); }
 

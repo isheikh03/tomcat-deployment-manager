@@ -107,6 +107,9 @@ public class ArtifactStorage {
 
     /** Recomputes the checksum of a stored file and compares it with the recorded one. */
     public Verification verify(StoredArtifact artifact) {
+        if (artifact.isFileRemoved())
+            return new Verification(false, "The WAR file was removed from storage by " + artifact.getFileRemovedBy() + " to free space ("
+                    + artifact.getFileRemovedReason() + "). Upload the identical WAR again to restore it.");
         Path file;
         try { file = resolve(artifact.getStoragePath()); }
         catch (IllegalArgumentException e) { return new Verification(false, "The recorded storage path is invalid."); }
@@ -129,6 +132,22 @@ public class ArtifactStorage {
     /** Opens the stored bytes for reading (used by the deployment engine). */
     public InputStream open(StoredArtifact artifact) throws IOException {
         return Files.newInputStream(resolve(artifact.getStoragePath()));
+    }
+
+    /** Free space on the file system that holds the artifact store, or -1 when it cannot be read. */
+    public long usableSpace() {
+        try { return Files.getFileStore(root).getUsableSpace(); } catch (IOException e) { return -1; }
+    }
+
+    /**
+     * Deletes a stored file and fails loudly if it is still there afterwards (storage cleanup must
+     * never record a file as removed while it still exists).
+     */
+    void deleteStrict(StoredArtifact artifact) throws IOException {
+        Path file = resolve(artifact.getStoragePath());
+        file.toFile().setWritable(true, true);
+        Files.deleteIfExists(file);
+        if (Files.exists(file)) throw new IOException("The file is still present after deletion.");
     }
 
     public void delete(StoredArtifact artifact) {

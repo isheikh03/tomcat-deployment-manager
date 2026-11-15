@@ -93,6 +93,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/applications/**").hasRole(ADMIN)
                         .requestMatchers("/applications/new", "/applications/*/edit").hasRole(ADMIN)
                         // Release library: upload per policy, metadata by operators, archive/delete by administrators.
+                        // Storage cleanup (removing release files, bulk-deleting backups) is administrator-only, including its previews.
+                        .requestMatchers("/releases/cleanup", "/backups/cleanup").hasRole(ADMIN)
                         .requestMatchers("/releases/upload").access(uploaders)
                         .requestMatchers(HttpMethod.POST, "/releases/*/metadata").hasAnyRole(ADMIN, OPERATOR)
                         .requestMatchers(HttpMethod.POST, "/releases/**").hasRole(ADMIN)
