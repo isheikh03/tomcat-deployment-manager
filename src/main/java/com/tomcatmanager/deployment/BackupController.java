@@ -27,13 +27,23 @@ public class BackupController {
     }
 
     @GetMapping("/backups")
-    public String index(Model model) {
-        List<BackupService.Entry> entries = service.list();
+    public String index(@RequestParam(required = false) Long instance, Model model) {
+        List<BackupService.Entry> all = service.list();
+        // Instances that have restore points, for the filter: id -> name.
+        java.util.Map<Long, String> instances = new java.util.TreeMap<>();
+        for (BackupService.Entry e : all)
+            if (e.target().getInstanceId() != null) instances.putIfAbsent(e.target().getInstanceId(), e.target().getInstanceName());
+        Long selected = instance != null && instances.containsKey(instance) ? instance : null;
+        List<BackupService.Entry> entries = selected == null ? all
+                : all.stream().filter(e -> selected.equals(e.target().getInstanceId())).toList();
         model.addAttribute("pageTitle", "Backups");
         model.addAttribute("entries", entries);
-        model.addAttribute("serverBackupCount", entries.stream().filter(BackupService.Entry::serverBackup).count());
-        model.addAttribute("protectedCount", entries.stream().filter(BackupService.Entry::rollbackPoint).count());
-        model.addAttribute("missingCount", entries.stream().filter(e -> !e.fileExists()).count());
+        model.addAttribute("instances", instances);
+        model.addAttribute("instance", selected);
+        // The summary cards always describe all backups, whatever the filter.
+        model.addAttribute("serverBackupCount", all.stream().filter(BackupService.Entry::serverBackup).count());
+        model.addAttribute("protectedCount", all.stream().filter(BackupService.Entry::rollbackPoint).count());
+        model.addAttribute("missingCount", all.stream().filter(e -> !e.fileExists()).count());
         model.addAttribute("totalSize", ArtifactStorage.humanSize(service.totalServerBackupBytes()));
         model.addAttribute("backupDir", properties.backupDir().toAbsolutePath().normalize().toString());
         model.addAttribute("retention", service.retentionPerContext());
@@ -46,16 +56,11 @@ public class BackupController {
         catch (java.io.IOException | RuntimeException e) { return "unknown"; }
     }
 
-    /** Server backups, optionally of one instance, to select individual backups for deletion (administrators). Nothing is preselected. */
+    /** Backups are now selected and deleted on the Restore points page; old links and bookmarks land there. */
     @GetMapping("/backups/cleanup")
-    public String cleanupSelect(@RequestParam(required = false) Long instance, Model model) {
-        model.addAttribute("pageTitle", "Clean up backups");
-        model.addAttribute("entries", cleanup.serverBackups(instance));
-        model.addAttribute("instances", cleanup.backupInstances());
-        model.addAttribute("instance", instance);
-        model.addAttribute("totalSize", ArtifactStorage.humanSize(service.totalServerBackupBytes()));
-        model.addAttribute("freeSpace", freeSpace());
-        return "backups/cleanup";
+    public String cleanupSelect(@RequestParam(required = false) Long instance, RedirectAttributes redirect) {
+        if (instance != null) redirect.addAttribute("instance", instance);
+        return "redirect:/backups";
     }
 
     @PostMapping("/backups/cleanup")
@@ -68,7 +73,7 @@ public class BackupController {
             flash.addFlashAttribute("error", e.getMessage());
         }
         if (instance != null) flash.addAttribute("instance", instance); // back to the same filtered list
-        return "redirect:/backups/cleanup";
+        return "redirect:/backups";
     }
 
     public record BackupDto(Long id, Long targetId, Long runId, String instanceName, String contextPath, String filename, String source,

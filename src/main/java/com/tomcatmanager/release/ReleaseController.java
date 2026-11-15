@@ -48,8 +48,17 @@ public class ReleaseController {
 
     @GetMapping
     public String library(@RequestParam(required = false) Long app, @RequestParam(defaultValue = "") String q,
-                          @RequestParam(defaultValue = "false") boolean archived, @RequestParam(defaultValue = "0") int page, Model model) {
+                          @RequestParam(defaultValue = "false") boolean archived, @RequestParam(defaultValue = "0") int page,
+                          @RequestParam(defaultValue = "") String tab, org.springframework.security.core.Authentication authentication, Model model) {
         Page<Release> result = service.search(app, q, archived, page, PAGE_SIZE);
+        // Administrators clean up release storage on this page, in the "Storage cleanup" tab; the same filter applies.
+        boolean admin = authentication != null && authentication.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (admin) {
+            List<StorageCleanupService.ReleaseFile> files = cleanup.releaseFiles(app, q);
+            model.addAttribute("files", files);
+            model.addAttribute("removableCount", files.stream().filter(f -> f.state() == StorageCleanupService.FileState.STORED).count());
+            model.addAttribute("storageTab", "storage".equals(tab));
+        }
         model.addAttribute("pageTitle", "Release library");
         model.addAttribute("releases", result);
         model.addAttribute("applications", applications.findAllByOrderByNameAsc());
@@ -138,16 +147,17 @@ public class ReleaseController {
         return "redirect:/releases/" + id;
     }
 
-    /** Release files on disk, to select individual versions for removal (administrators). Nothing is preselected. */
+    /** Storage cleanup is now a tab of the Release library; old links and bookmarks open that tab. */
     @GetMapping("/cleanup")
-    public String cleanupSelect(@RequestParam(required = false) Long app, @RequestParam(defaultValue = "") String q, Model model) {
-        model.addAttribute("pageTitle", "Clean up release storage");
-        model.addAttribute("files", cleanup.releaseFiles(app, q));
-        model.addAttribute("applications", applications.findAllByOrderByNameAsc());
-        model.addAttribute("app", app);
-        model.addAttribute("q", q);
-        storageOverview(model);
-        return "releases/cleanup";
+    public String cleanupSelect(@RequestParam(required = false) Long app, @RequestParam(defaultValue = "") String q, RedirectAttributes redirect) {
+        storageTabParams(redirect, app, q);
+        return "redirect:/releases";
+    }
+
+    private static void storageTabParams(RedirectAttributes redirect, Long app, String q) {
+        if (app != null) redirect.addAttribute("app", app);
+        if (q != null && !q.isBlank()) redirect.addAttribute("q", q);
+        redirect.addAttribute("tab", "storage");
     }
 
     @PostMapping("/cleanup")
@@ -160,9 +170,8 @@ public class ReleaseController {
         } catch (IllegalArgumentException e) {
             flash.addFlashAttribute("error", e.getMessage());
         }
-        if (app != null) flash.addAttribute("app", app); // back to the same filtered list
-        if (!q.isBlank()) flash.addAttribute("q", q);
-        return "redirect:/releases/cleanup";
+        storageTabParams(flash, app, q); // back to the same filtered list, on the Storage cleanup tab
+        return "redirect:/releases";
     }
 
     @PostMapping("/{id}/archive")

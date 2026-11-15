@@ -56,6 +56,9 @@
             await apiFetch(api + button.dataset.delete + "/delete", { method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ reason: result.value, confirmRollbackPoint: rollbackPoint }) });
             root.querySelector("[data-backup-row='" + button.dataset.delete + "']").remove();
+            // Refresh the "N selected" summary of the bulk delete, which may have counted the removed row.
+            const box = root.querySelector("input[name='backupIds']");
+            if (box) box.dispatchEvent(new Event("change"));
             Swal.fire({ icon: "success", text: "Backup deleted.", timer: 1600, showConfirmButton: false });
         } catch (e) {
             Swal.fire({ icon: "error", text: e.message });
