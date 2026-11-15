@@ -35,6 +35,8 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Real deployments end to end: PostgreSQL, the release library, an SSH/SFTP server and a
@@ -66,7 +68,7 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
     private byte[] warA, warB;
 
     @BeforeEach void setUp() throws Exception {
-        jdbc.execute("TRUNCATE deployment_logs, deployment_backups, deployment_targets, deployment_runs, release_artifacts, stored_artifacts, applications, "
+        jdbc.execute("TRUNCATE audit_events, deployment_logs, deployment_backups, deployment_targets, deployment_runs, release_artifacts, stored_artifacts, applications, "
                 + "connection_test_results, server_group_instances, tomcat_instances, server_groups, managed_hosts RESTART IDENTITY CASCADE");
         for (String dir : List.of("opt/tomcat/a/webapps", "opt/tomcat/b/webapps")) Files.createDirectories(serverRoot.resolve(dir));
         sshServer = new EmbeddedSshServer(serverRoot, null, false);
@@ -540,5 +542,117 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
         deployments.reconcile(run.getId(), targetId, TargetState.ROLLBACK_REQUIRED, "Health endpoint broken after the update", "admin");
         assertThat(recorder.target(targetId).getState()).isEqualTo(TargetState.ROLLBACK_REQUIRED);
         assertThat(recorder.run(run.getId()).getState()).isEqualTo(DeploymentState.FAILED);
+    }
+
+    // ---- storage cleanup ----
+
+    @Autowired StorageCleanupService cleanup;
+    @Autowired com.tomcatmanager.release.StoredArtifactRepository storedArtifacts;
+    @Autowired com.tomcatmanager.release.StorageHousekeeping housekeeping;
+    @Autowired com.tomcatmanager.release.ArtifactStorage storage;
+    @Autowired org.springframework.web.context.WebApplicationContext web;
+
+    @Test void theRunningVersionIsKeptAnOldOneIsRemovedKeepingHistoryAndAnIdenticalUploadRestoresIt() throws Exception {
+        jdbc.execute("TRUNCATE audit_events RESTART IDENTITY");
+        TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "portal.war", Environment.DEVELOPMENT);
+        deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
+        assertThat(cleanup.describe(releases.find(releaseA.getId())).state()).isEqualTo(StorageCleanupService.FileState.RUNNING);
+        assertThatThrownBy(() -> cleanup.removeReleaseFile(releaseA.getId(), "admin", "free some space", true))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("Currently running on tomcat-a");
+
+        // After 1.1 replaces it (with a server backup as rollback point), 1.0 is no longer needed.
+        DeploymentRun second = deploy(releaseB, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
+        assertThat(cleanup.describe(releases.find(releaseA.getId())).state()).isEqualTo(StorageCleanupService.FileState.STORED);
+        assertThatThrownBy(() -> cleanup.removeReleaseFile(releaseA.getId(), "admin", "x", false)).hasMessageContaining("reason");
+        cleanup.removeReleaseFile(releaseA.getId(), "admin", "old version, disk almost full", false);
+
+        Release removed = releases.find(releaseA.getId());
+        assertThat(removed.getArtifact().isFileRemoved()).isTrue();
+        assertThat(storage.exists(removed.getArtifact().getStoragePath())).isFalse();
+        assertThat(runRepository.findByReleaseIdOrderByRequestedAtDesc(releaseA.getId())).hasSize(1); // history kept
+        assertThat(housekeeping.run().missing()).as("removed on purpose is not reported missing").isEmpty();
+        assertThat(storedArtifacts.totalStoredBytes()).isEqualTo(warB.length);
+        DeploymentPreflight.Preview preview = preflight.evaluate(new DeploymentPreflight.Request(releaseA.getId(), Environment.DEVELOPMENT, null,
+                List.of(target(a)), DeploymentRun.Strategy.SEQUENTIAL, 1), "it");
+        assertThat(preview.blockers()).anySatisfy(b -> assertThat(b).contains("removed from storage by admin").contains("Upload the identical WAR"));
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where action = 'RELEASE_FILE_REMOVED'", Long.class)).isEqualTo(1L);
+        assertThat(second.getState()).isEqualTo(DeploymentState.SUCCEEDED);
+
+        // Uploading the identical bytes again restores the file for the existing release.
+        assertThatThrownBy(() -> releases.upload(new ReleaseService.UploadCommand(releaseA.getApplication().getId(), "1.0-again", null, "portal-1.0.war"),
+                new ByteArrayInputStream(warA), "admin")).isInstanceOf(com.tomcatmanager.release.DuplicateReleaseException.class).hasMessageContaining("now restored");
+        Release restored = releases.find(releaseA.getId());
+        assertThat(restored.getArtifact().isFileRemoved()).isFalse();
+        assertThat(storage.verify(restored.getArtifact()).ok()).isTrue();
+    }
+
+    @Test void aLibraryRollbackPointNeedsConfirmation() {
+        TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "portal.war", Environment.DEVELOPMENT);
+        a.setBackupEnabled(false); // no server backup: a rollback would restore the previous library release
+        instances.save(a);
+        deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
+        deploy(releaseB, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
+
+        StorageCleanupService.ReleaseFile file = cleanup.describe(releases.find(releaseA.getId()));
+        assertThat(file.state()).isEqualTo(StorageCleanupService.FileState.ROLLBACK_POINT);
+        assertThat(file.reasons()).anySatisfy(r -> assertThat(r).startsWith("Rollback point of deployment #2"));
+        assertThatThrownBy(() -> cleanup.removeReleaseFile(releaseA.getId(), "admin", "free some space", false)).hasMessageContaining("Confirm");
+        cleanup.removeReleaseFile(releaseA.getId(), "admin", "free some space", true);
+        assertThat(releases.find(releaseA.getId()).getArtifact().getFileRemovedReason()).contains("was a rollback point");
+    }
+
+    @Test void selectedReleaseFilesAndBackupsAreRemovedNothingIsPreselectedAndProtectedOnesAreSkipped() throws Exception {
+        TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "portal.war", Environment.DEVELOPMENT);
+        TomcatInstance b = sshInstance("tomcat-b", "/opt/tomcat/b", "portal.war", Environment.DEVELOPMENT);
+        deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
+        deploy(releaseB, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a)); // backup of 1.0 on a
+        deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a)); // backup of 1.1 on a: the rollback point
+        deploy(releaseB, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(b));
+        deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(b)); // backup of 1.1 on b: rollback point
+        // 1.0 now runs on both instances; 1.1 runs nowhere and is no library rollback point (server backups exist).
+
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(web)
+                .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity()).build();
+        var admin = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN");
+        String page = mvc.perform(get("/releases/cleanup").with(admin)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(page).contains("Portal").contains("1.1").contains("Can be removed").contains("In use · kept").contains("Nothing selected");
+        assertThat(page).as("nothing is preselected").doesNotContainPattern("name=\"artifactIds\"[^>]*checked");
+        assertThat(mvc.perform(get("/releases/" + releaseA.getId()).with(admin)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .contains("In use").contains("Currently running on tomcat-a");
+
+        // Filtering by version.
+        assertThat(cleanup.releaseFiles(null, "1.1")).extracting(f -> f.artifact().getId()).containsExactly(releaseB.getArtifact().getId());
+        assertThat(cleanup.releaseFiles(releaseA.getApplication().getId(), "")).hasSize(2);
+        assertThat(cleanup.releaseFiles(null, "no-such-version")).isEmpty();
+
+        // Selecting both: the running 1.0 is skipped, 1.1 is removed.
+        StorageCleanupService.Result result = cleanup.removeReleaseFiles(List.of(releaseB.getArtifact().getId(), releaseA.getArtifact().getId()), "admin", "disk almost full");
+        assertThat(result.removed()).isEqualTo(1);
+        assertThat(result.skipped()).as("the running version is skipped even when selected").isEqualTo(1);
+        assertThat(cleanup.releaseFiles(null, "")).extracting(f -> f.artifact().getId()).containsExactly(releaseA.getArtifact().getId());
+        assertThat(mvc.perform(get("/releases/" + releaseB.getId()).with(admin)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .contains("File removed · not deployable").contains("Reason: disk almost full");
+        assertThat(mvc.perform(get("/releases").with(admin)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .contains("1 removed to free space").contains("Clean up storage");
+
+        // Backups: filtered by instance; the rollback point of each instance cannot be selected.
+        assertThat(cleanup.backupInstances()).containsOnlyKeys(a.getId(), b.getId());
+        List<BackupService.Entry> onA = cleanup.serverBackups(a.getId());
+        assertThat(onA).hasSize(2).allSatisfy(e -> assertThat(e.target().getInstanceId()).isEqualTo(a.getId()));
+        assertThat(cleanup.serverBackups(b.getId())).hasSize(1).allSatisfy(e -> assertThat(e.rollbackPoint()).isTrue());
+        String backupPage = mvc.perform(get("/backups/cleanup").param("instance", String.valueOf(a.getId())).with(admin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(backupPage).contains("Rollback point · kept").contains("Can be deleted").doesNotContain("tomcat-b</td>");
+
+        long oldOnA = onA.stream().filter(e -> !e.rollbackPoint()).findFirst().orElseThrow().backup().getId();
+        long pointOnA = onA.stream().filter(BackupService.Entry::rollbackPoint).findFirst().orElseThrow().backup().getId();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/backups/cleanup")
+                        .param("backupIds", String.valueOf(oldOnA), String.valueOf(pointOnA)).param("reason", "disk almost full")
+                        .param("instance", String.valueOf(a.getId())).with(admin)
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/backups/cleanup?instance=" + a.getId()));
+        assertThat(cleanup.serverBackups(a.getId())).extracting(e -> e.backup().getId()).containsExactly(pointOnA);
+        assertThat(backups.findByDeletedAtIsNullOrderByCreatedAtDesc()).hasSize(2);
     }
 }

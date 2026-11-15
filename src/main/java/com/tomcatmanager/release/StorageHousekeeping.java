@@ -62,7 +62,7 @@ public class StorageHousekeeping {
             List<String> missing = new ArrayList<>();
             for (StoredArtifact a : known) {
                 referenced.add(a.getStoragePath());
-                if (!storage.exists(a.getStoragePath())) missing.add(a.getSha256());
+                if (!a.isFileRemoved() && !storage.exists(a.getStoragePath())) missing.add(a.getSha256()); // removed on purpose is not missing
             }
 
             int orphans = 0;

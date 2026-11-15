@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,6 +48,19 @@ class DeploymentAuthorizationTest {
     @MockitoBean ServerGroupRepository groups;
     @MockitoBean ConnectionTestService connections;
     @MockitoBean DeploymentProperties properties;
+    @MockitoBean StorageCleanupService cleanup;
+
+    @Test void onlyAdministratorsCleanUpBackups() throws Exception {
+        mvc.perform(get("/backups/cleanup").with(user("operator").roles("DEPLOYMENT_OPERATOR"))).andExpect(status().isForbidden());
+        mvc.perform(post("/backups/cleanup").param("backupIds", "1").param("reason", "free disk space")
+                .with(csrf()).with(user("operator").roles("DEPLOYMENT_OPERATOR"))).andExpect(status().isForbidden());
+        verify(cleanup, never()).deleteBackups(any(), anyString(), anyString());
+        when(cleanup.deleteBackups(any(), anyString(), anyString()))
+                .thenReturn(new StorageCleanupService.Result(1, 10, 0, java.util.List.of()));
+        mvc.perform(post("/backups/cleanup").param("backupIds", "1").param("reason", "free disk space")
+                .with(csrf()).with(user("admin").roles("ADMIN"))).andExpect(status().is3xxRedirection());
+        verify(cleanup).deleteBackups(java.util.List.of(1L), "admin", "free disk space");
+    }
 
     private static final String BODY = "{\"requestId\":\"6f1c2a7e-0d5b-4c41-9a2e-1b0c3d4e5f60\",\"deployment\":{\"releaseId\":1,\"environment\":\"DEVELOPMENT\",\"targets\":[]},\"acknowledgeWarnings\":true}";
 

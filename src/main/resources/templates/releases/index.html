@@ -26,6 +26,13 @@
         <span class="text-secondary" th:text="'· last run ' + ${@time.format(storageReport.ranAt())}"></span>
         <form class="d-inline" method="post" th:action="@{/releases/storage-check}"><button class="btn btn-link btn-sm p-0 ms-2 align-baseline">Run check now</button></form>
     </div>
+    <div class="storage-status small mb-3 d-flex flex-wrap align-items-center gap-2" sec:authorize="hasRole('ADMIN')">
+        <i class="bx bx-hdd text-secondary"></i>
+        <span th:text="'Release files: ' + ${storedSize} + ' in ' + ${storedCount} + ' file' + (${storedCount == 1} ? '' : 's')"></span>
+        <span class="text-secondary" th:if="${removedCount > 0}" th:text="'· ' + ${removedCount} + ' removed to free space'"></span>
+        <span class="text-secondary" th:text="'· ' + ${freeSpace} + ' free on disk'"></span>
+        <a class="btn btn-outline-danger btn-sm ms-1" th:href="@{/releases/cleanup}"><i class="bx bx-trash me-1"></i>Clean up storage</a>
+    </div>
 
     <form class="filter-bar mb-3" method="get" th:action="@{/releases}" role="search">
         <select class="form-select filter-app" name="app" aria-label="Application" data-autosubmit>
@@ -72,6 +79,7 @@
                     <td>
                         <span class="badge" th:classappend="${r.archived ? ' text-bg-secondary' : ' text-bg-success'}" th:text="${r.archived ? 'Archived' : 'Available'}"></span>
                         <span th:if="${r.lastVerificationOk != null and !r.lastVerificationOk}" class="badge text-bg-danger">Integrity failed</span>
+                        <span th:if="${r.artifact.fileRemoved}" class="badge text-bg-warning" title="The WAR file was removed to free space; upload the identical WAR to restore it">File removed</span>
                     </td>
                 </tr>
                 </tbody>

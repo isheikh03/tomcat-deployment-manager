@@ -18,7 +18,8 @@
             <div class="eyebrow" th:text="'RELEASE R-' + ${release.id}">RELEASE</div>
             <h1 class="h3 mb-1"><span th:text="${release.application.name}">app</span> <span class="text-primary" th:text="${release.versionLabel}">1.0</span></h1>
             <div class="d-flex flex-wrap gap-2 align-items-center">
-                <span class="badge" th:classappend="${release.archived ? ' text-bg-secondary' : ' text-bg-success'}" th:text="${release.archived ? 'Archived' : 'Available for deployment'}"></span>
+                <span class="badge" th:unless="${artifact.fileRemoved}" th:classappend="${release.archived ? ' text-bg-secondary' : ' text-bg-success'}" th:text="${release.archived ? 'Archived' : 'Available for deployment'}"></span>
+                <span class="badge text-bg-warning" th:if="${artifact.fileRemoved}">File removed · not deployable</span>
                 <span class="badge text-bg-light border" th:text="${release.originalFilename}"></span>
                 <span class="small text-secondary" th:text="'Uploaded ' + ${@time.format(release.uploadedAt)} + ' by ' + ${release.uploadedBy}"></span>
             </div>
@@ -59,10 +60,46 @@
                                 <span th:if="${release.lastVerifiedAt != null}" class="badge" th:classappend="${release.lastVerificationOk ? ' text-bg-success' : ' text-bg-danger'}"
                                       th:text="(${release.lastVerificationOk} ? 'Verified ' : 'Failed ') + ${@time.format(release.lastVerifiedAt)}"></span>
                             </span>
-                            <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" type="button" class="btn btn-sm btn-outline-primary"
+                            <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" th:unless="${artifact.fileRemoved}" type="button" class="btn btn-sm btn-outline-primary"
                                     th:attr="data-verify-url=@{/api/releases/{id}/verify(id=${release.id})}">Verify now</button>
                         </div>
                         <div class="form-text">Recomputes the SHA-256 of the stored file. This also runs automatically before every deployment.</div>
+                    </dd>
+                    <dt class="col-sm-4">Stored file</dt>
+                    <dd class="col-sm-8">
+                        <th:block th:if="${artifact.fileRemoved}">
+                            <span class="badge text-bg-warning">Removed</span>
+                            <span th:text="${@time.format(artifact.fileRemovedAt)} + ' by ' + ${artifact.fileRemovedBy}"></span>
+                            <div class="small text-secondary" th:text="'Reason: ' + ${artifact.fileRemovedReason}"></div>
+                            <div class="form-text">The release and its history are kept. To deploy it again, upload the identical WAR file; it is recognised by its SHA-256 and restored.</div>
+                        </th:block>
+                        <th:block th:unless="${artifact.fileRemoved}">
+                            <span class="badge" th:classappend="${releaseFile.state().name() == 'STORED'} ? ' text-bg-light border' : ' text-bg-info'"
+                                  th:text="${releaseFile.state().name() == 'STORED'} ? 'Stored · ' + ${size} : ${releaseFile.state().label()}"></span>
+                            <ul class="small text-secondary mb-1 ps-3 mt-1" th:unless="${#lists.isEmpty(releaseFile.reasons())}">
+                                <li th:each="why : ${releaseFile.reasons()}" th:text="${why}"></li>
+                            </ul>
+                            <div sec:authorize="hasRole('ADMIN')">
+                                <p class="form-text mb-1" th:if="${releaseFile.state().name() == 'RUNNING'}">
+                                    The file of a version that is currently deployed or being deployed is kept, so it can always be redeployed or restored.</p>
+                                <details th:if="${releaseFile.removable()}" class="mt-1">
+                                    <summary class="small text-danger">Remove the WAR file to free <span th:text="${size}"></span>…</summary>
+                                    <form method="post" th:action="@{/releases/{id}/remove-file(id=${release.id})}" class="mt-2"
+                                          data-confirm="Remove the WAR file from storage? The release and its history are kept, but it cannot be deployed or rolled back to until the identical WAR is uploaded again.">
+                                        <p class="small mb-2" th:unless="${#lists.isEmpty(sharing)}">The file is shared with
+                                            <span th:text="${#lists.size(sharing)}"></span> other release(s); they lose their file too.</p>
+                                        <label class="form-label small" for="remove-reason">Reason</label>
+                                        <input class="form-control form-control-sm mb-2" id="remove-reason" name="reason" required minlength="5" maxlength="300"
+                                               placeholder="e.g. old version, freeing disk space">
+                                        <div class="form-check mb-2" th:if="${releaseFile.state().name() == 'ROLLBACK_POINT'}">
+                                            <input class="form-check-input" type="checkbox" id="confirm-rollback" name="confirmRollbackPoint" value="true" required>
+                                            <label class="form-check-label small" for="confirm-rollback">I understand the deployments above can then no longer be rolled back to this version.</label>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-danger"><i class="bx bx-trash me-1"></i>Remove WAR file</button>
+                                    </form>
+                                </details>
+                            </div>
+                        </th:block>
                     </dd>
                     <th:block th:unless="${#lists.isEmpty(sharing)}">
                         <dt class="col-sm-4">Shared file</dt>
@@ -97,7 +134,7 @@
             <section class="panel p-0">
                 <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
                     <h2 class="h6 mb-0">Deployment history</h2>
-                    <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" th:unless="${release.archived}" class="btn btn-sm btn-primary"
+                    <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" th:unless="${release.archived or artifact.fileRemoved}" class="btn btn-sm btn-primary"
                        th:href="@{/deployments/new(release=${release.id})}"><i class="bx bx-rocket me-1"></i>Deploy this release</a>
                 </div>
                 <div class="text-secondary small px-4 py-3" th:if="${#lists.isEmpty(deployments)}">Not deployed yet.</div>

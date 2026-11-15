@@ -56,10 +56,13 @@ public class ReleaseService {
         ArtifactStorage.StagedFile staged = storage.stage(content);
         try {
             StoredArtifact artifact = artifacts.findBySha256(staged.sha256()).orElse(null);
+            boolean restored = artifact != null && artifact.isFileRemoved();
+            if (restored) artifact = restoreFile(artifact, staged, actor);
             if (artifact != null) {
                 releases.findByApplicationIdAndArtifactId(application.getId(), artifact.getId()).ifPresent(existing -> {
                     throw new DuplicateReleaseException("This exact WAR (same SHA-256) is already release " + existing.getVersionLabel()
-                            + " of " + application.getName() + ".", existing.getId());
+                            + " of " + application.getName() + "." + (restored ? " Its stored file had been removed to free space and is now restored." : ""),
+                            existing.getId());
                 });
             }
             return store(application, staged, artifact, null, label, filename, notes, actor, "");
@@ -84,6 +87,7 @@ public class ReleaseService {
         ArtifactStorage.StagedFile staged = storage.stage(content);
         try {
             StoredArtifact artifact = artifacts.findBySha256(staged.sha256()).orElse(null);
+            if (artifact != null && artifact.isFileRemoved()) artifact = restoreFile(artifact, staged, actor);
             WarInspection inspection = artifact == null ? inspector.inspect(staged.path()) : null;
             ManagedApplication app = application.get();
             if (artifact != null) {
@@ -108,6 +112,54 @@ public class ReleaseService {
         } finally {
             storage.discard(staged);
         }
+    }
+
+    /**
+     * Storage cleanup: deletes the stored WAR file but keeps the releases using it, their deployment
+     * history and audit trail. Callers check first that the file is not in use (see StorageCleanupService).
+     * The releases can then no longer be deployed or restored until the identical WAR is uploaded again.
+     */
+    public StoredArtifact removeFile(long artifactId, String actor, String reason) {
+        StoredArtifact artifact = artifacts.findById(artifactId).orElseThrow(() -> new NoSuchElementException("Stored file " + artifactId + " not found."));
+        if (artifact.isFileRemoved()) throw new IllegalStateException("This WAR file was already removed from storage.");
+        try {
+            storage.deleteStrict(artifact);
+        } catch (IOException | IllegalArgumentException e) {
+            throw new IllegalStateException("The WAR file could not be deleted (" + e.getMessage() + "); nothing was changed.", e);
+        }
+        StoredArtifact saved = tx.execute(status -> {
+            StoredArtifact a = artifacts.findById(artifactId).orElseThrow();
+            a.markFileRemoved(actor, reason.length() > 500 ? reason.substring(0, 499) + "…" : reason);
+            return artifacts.save(a);
+        });
+        String used = describeReleases(artifactId);
+        log.info("Stored file {} ({}) removed by {}: {}", artifact.getSha256(), ArtifactStorage.humanSize(artifact.getSizeBytes()), actor, reason);
+        for (Release r : releases.findByArtifactIdOrderByUploadedAtDesc(artifactId))
+            audit.record(actor, "RELEASE_FILE_REMOVED", "RELEASE", r.getId(), com.tomcatmanager.audit.AuditEvent.Outcome.SUCCESS,
+                    "Removed the WAR file of " + used + " (" + ArtifactStorage.humanSize(artifact.getSizeBytes()) + ", SHA-256 " + artifact.getSha256()
+                            + ") to free space; the release record and history are kept. Reason: " + reason);
+        return saved;
+    }
+
+    /** Puts a removed file back from identical uploaded bytes. */
+    private StoredArtifact restoreFile(StoredArtifact artifact, ArtifactStorage.StagedFile staged, String actor) throws IOException {
+        String path = storage.commit(staged);
+        if (!path.equals(artifact.getStoragePath())) throw new IllegalStateException("The restored file was stored at an unexpected path; contact an administrator.");
+        StoredArtifact restored = tx.execute(status -> {
+            StoredArtifact a = artifacts.findById(artifact.getId()).orElseThrow();
+            a.markFileRestored();
+            return artifacts.save(a);
+        });
+        log.info("Stored file {} restored by {} (identical upload)", artifact.getSha256(), actor);
+        for (Release r : releases.findByArtifactIdOrderByUploadedAtDesc(artifact.getId()))
+            audit.record(actor, "RELEASE_FILE_RESTORED", "RELEASE", r.getId(), com.tomcatmanager.audit.AuditEvent.Outcome.SUCCESS,
+                    "Restored the WAR file of " + describeReleases(artifact.getId()) + " by uploading identical bytes (SHA-256 " + artifact.getSha256() + ").");
+        return restored;
+    }
+
+    private String describeReleases(long artifactId) {
+        return releases.findByArtifactIdOrderByUploadedAtDesc(artifactId).stream()
+                .map(r -> r.getApplication().getName() + " " + r.getVersionLabel()).collect(java.util.stream.Collectors.joining(", "));
     }
 
     private String uniqueLabel(long applicationId, String base) {

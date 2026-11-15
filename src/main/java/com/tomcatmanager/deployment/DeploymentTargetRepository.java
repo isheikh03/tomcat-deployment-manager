@@ -47,6 +47,32 @@ public interface DeploymentTargetRepository extends JpaRepository<DeploymentTarg
             order by t.id""")
     List<DeploymentTarget> findLaterTargets(Long instanceId, String contextPath, Long afterId);
 
+    /**
+     * What is currently deployed on every instance and context, where it is a library release (the
+     * latest success per instance and context). Storage cleanup never removes these files.
+     */
+    @Query("""
+            select t from DeploymentTarget t join fetch t.run r join fetch r.release rel join fetch rel.artifact
+            where t.instanceId is not null and t.state = com.tomcatmanager.deployment.TargetState.SUCCEEDED
+              and t.finishedAt = (select max(t2.finishedAt) from DeploymentTarget t2
+                                  where t2.instanceId = t.instanceId and t2.contextPath = t.contextPath
+                                    and t2.state = com.tomcatmanager.deployment.TargetState.SUCCEEDED)""")
+    List<DeploymentTarget> findAllCurrentReleaseDeployments();
+
+    /** Targets that may still be rolled back to a previous library release (checked further by RollbackPreflight). */
+    @Query("""
+            select t from DeploymentTarget t join fetch t.run r join fetch r.application
+            where t.instanceId is not null and t.previousReleaseId is not null and t.rolledBackByRunId is null
+              and t.state in (com.tomcatmanager.deployment.TargetState.SUCCEEDED, com.tomcatmanager.deployment.TargetState.ROLLBACK_REQUIRED)
+              and r.kind = com.tomcatmanager.deployment.DeploymentRun.Kind.DEPLOYMENT""")
+    List<DeploymentTarget> findPossibleLibraryRollbacks();
+
+    /** Last successful deployment time per stored file: rows of [artifact id, finished at]. */
+    @Query("""
+            select rel.artifact.id, max(t.finishedAt) from DeploymentTarget t join t.run r join r.release rel
+            where t.state = com.tomcatmanager.deployment.TargetState.SUCCEEDED group by rel.artifact.id""")
+    List<Object[]> lastDeployedPerArtifact();
+
     /** The WAR file name an application was last successfully deployed as on an instance (Quick Deployment default). */
     @Query("""
             select t.targetFilename from DeploymentTarget t join t.run r
