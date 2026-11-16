@@ -33,6 +33,8 @@ public class AccountController {
     public String login(Model model) {
         if (bootstrap.setupOpen()) return "redirect:/setup";
         model.addAttribute("pageTitle", "Sign in");
+        // Days a "Remember me" sign-in lasts; the checkbox is hidden when the option is switched off (0).
+        model.addAttribute("rememberMeDays", accounts.rememberMeDays());
         model.addAttribute("secureCookie", secureCookie);
         return "account/login";
     }
@@ -68,7 +70,17 @@ public class AccountController {
         // My access: an administrator's teams, or an operator's or viewer's instance grants.
         model.addAttribute("myTeams", accessAdmin.teamsOf(user.getId()));
         model.addAttribute("myGrants", accessAdmin.grantsOf(user.getId()));
+        model.addAttribute("rememberMeDays", accounts.rememberMeDays());
         return "account/account";
+    }
+
+    /** Signs this user out of every browser where they chose "Remember me" (including this one, at its next visit). */
+    @PostMapping("/account/forget-browsers")
+    public String forgetBrowsers(Principal principal, org.springframework.web.servlet.mvc.support.RedirectAttributes flash) {
+        accounts.forgetRememberedLogins(principal.getName());
+        accounts.recordForgottenBrowsers(principal.getName());
+        flash.addFlashAttribute("success", "Remembered browsers were forgotten: everywhere you chose \"Remember me\", you will have to sign in again.");
+        return "redirect:/account";
     }
 
     @GetMapping(PasswordChangeEnforcement.CHANGE_URL)

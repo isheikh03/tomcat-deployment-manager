@@ -52,6 +52,28 @@ public class UserAccountService {
     /** The configured minimum password length; never below 8, whatever is configured. */
     public int minPasswordLength() { return Math.max(8, properties.minPasswordLength()); }
 
+    /** Days a "Remember me" sign-in lasts; 0 when the option is switched off. */
+    public long rememberMeDays() {
+        return rememberMeTokens == null || properties.rememberMeValidity() == null ? 0 : Math.max(0, properties.rememberMeValidity().toDays());
+    }
+
+    // ---- "Remember me" tokens (see RememberMeConfig; absent in unit tests) ----
+    private org.springframework.security.web.authentication.rememberme.PersistentTokenRepository rememberMeTokens;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRememberMeTokens(org.springframework.security.web.authentication.rememberme.PersistentTokenRepository tokens) { this.rememberMeTokens = tokens; }
+
+    /** Audit record for "Forget remembered browsers" on the account page. */
+    public void recordForgottenBrowsers(String username) {
+        audit.record(username, "REMEMBERED_LOGINS_CLEARED", "USER", username, AuditEvent.Outcome.SUCCESS,
+                "Forgot all browsers remembered with \"Remember me\".");
+    }
+
+    /** Signs the user out of every browser where they chose "Remember me". */
+    public void forgetRememberedLogins(String username) {
+        if (rememberMeTokens != null && username != null) rememberMeTokens.removeUserTokens(username);
+    }
+
     public String passwordProblem(String username, String password) {
         int min = minPasswordLength();
         if (password == null || password.length() < min) return "Use at least " + min + " characters.";
@@ -166,6 +188,8 @@ public class UserAccountService {
         if (encoder.matches(next, user.getPasswordHash())) throw new IllegalArgumentException("Choose a password different from the current one.");
         user.setPasswordHash(encoder.encode(next), false);
         users.save(user);
+        // Browsers remembered with the old password must sign in again.
+        forgetRememberedLogins(user.getUsername());
         audit.success("PASSWORD_CHANGED", "USER", user.getUsername(), user.getUsername() + " changed their password.");
     }
 
@@ -200,8 +224,9 @@ public class UserAccountService {
         }
     }
 
-    /** Ends every open session of a user (role, status or password changed). */
+    /** Ends every open session and every "Remember me" sign-in of a user (role, status or password changed). */
     public void expireSessions(String username) {
+        forgetRememberedLogins(username);
         for (Object principal : sessions.getAllPrincipals()) {
             String name = principal instanceof UserDetails d ? d.getUsername() : String.valueOf(principal);
             if (!name.equalsIgnoreCase(username)) continue;

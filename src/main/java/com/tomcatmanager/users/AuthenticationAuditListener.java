@@ -28,6 +28,15 @@ public class AuthenticationAuditListener {
         if (event.getAuthentication() instanceof UsernamePasswordAuthenticationToken) accounts.loginSucceeded(event.getAuthentication().getName());
     }
 
+    /** A browser signed in again by its "Remember me" cookie. */
+    @EventListener
+    public void onRemembered(org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent event) {
+        if (event.getAuthentication() instanceof org.springframework.security.authentication.RememberMeAuthenticationToken) {
+            String name = event.getAuthentication().getName();
+            audit.record(name, "LOGIN_REMEMBERED", "USER", name, AuditEvent.Outcome.SUCCESS, "Signed in automatically (Remember me).");
+        }
+    }
+
     @EventListener
     public void onFailure(AbstractAuthenticationFailureEvent event) {
         Exception failure = event.getException();

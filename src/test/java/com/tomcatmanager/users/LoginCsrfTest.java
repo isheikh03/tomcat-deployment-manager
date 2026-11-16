@@ -38,6 +38,15 @@ class LoginCsrfTest {
         mvc.perform(post("/setup").param("token", "x")).andExpect(status().isForbidden());
     }
 
+    @Test void rememberMeIsOfferedOnlyWhenSwitchedOn() throws Exception {
+        mvc.perform(get("/login")).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("name=\"remember-me\""))));
+        org.mockito.Mockito.when(accounts.rememberMeDays()).thenReturn(14L);
+        mvc.perform(get("/login")).andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"remember-me\"")))
+                .andExpect(content().string(containsString("until you sign out")));
+    }
+
     @Test void loginPageCarriesHttpsWarningWhenCookieRequiresHttps() throws Exception {
         mvc.perform(get("/login")).andExpect(status().isOk())
                 .andExpect(content().string(containsString("insecure-cookie-warning")));

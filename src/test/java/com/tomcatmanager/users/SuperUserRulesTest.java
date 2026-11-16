@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 class SuperUserRulesTest {
     private final AppUserRepository users = mock(AppUserRepository.class);
     private final UserAccountService service = new UserAccountService(users, new BCryptPasswordEncoder(4), mock(AuditService.class),
-            new SessionRegistryImpl(), new SecurityProperties(false, new SecurityProperties.Bootstrap(null, null), 5, Duration.ofMinutes(15), 8),
+            new SessionRegistryImpl(), new SecurityProperties(false, new SecurityProperties.Bootstrap(null, null), 5, Duration.ofMinutes(15), 8, Duration.ofDays(14)),
             mock(TransactionTemplate.class));
 
     private AppUser account(long id, String username, Role role) {

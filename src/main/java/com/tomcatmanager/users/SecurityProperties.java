@@ -10,6 +10,8 @@ import java.time.Duration;
  *
  * @param devUsers           development only: seed admin/operator/viewer with well-known passwords when no user exists
  * @param bootstrapAdmin     first administrator created from configuration when no user exists (password must be changed at first sign-in)
+ * @param rememberMeValidity "Remember me" keeps a browser signed in until sign-out; this is only a technical upper limit
+ *                           (default 10 years); zero switches the option off
  */
 @ConfigurationProperties("app.security")
 public record SecurityProperties(
@@ -17,7 +19,8 @@ public record SecurityProperties(
         @DefaultValue Bootstrap bootstrapAdmin,
         @DefaultValue("5") int maxFailedLogins,
         @DefaultValue("PT15M") Duration lockoutDuration,
-        @DefaultValue("8") int minPasswordLength) {
+        @DefaultValue("8") int minPasswordLength,
+        @DefaultValue("P3650D") Duration rememberMeValidity) {
 
     public record Bootstrap(String username, String password) {
         public boolean configured() { return username != null && !username.isBlank() && password != null && !password.isBlank(); }
