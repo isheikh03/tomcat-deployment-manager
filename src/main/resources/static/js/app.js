@@ -148,13 +148,18 @@
             sync();
         });
 
-        // Show/hide a password field (sign-in page).
+        // Show/hide a password field: an eye icon button (eye = show, crossed-out eye = hide).
         document.querySelectorAll("[data-toggle-password]").forEach((button) => button.addEventListener("click", () => {
             const input = document.getElementById(button.dataset.togglePassword);
             const show = input.type === "password";
             input.type = show ? "text" : "password";
-            button.textContent = show ? "Hide" : "Show";
-            button.setAttribute("aria-label", show ? "Hide password" : "Show password");
+            const icon = document.createElement("i");
+            icon.className = "bx " + (show ? "bx-hide" : "bx-show");
+            icon.setAttribute("aria-hidden", "true");
+            button.replaceChildren(icon);
+            const label = show ? "Hide password" : "Show password";
+            button.setAttribute("aria-label", label);
+            button.title = label;
         }));
 
         // Show Tomcat Manager settings only for the Manager deployment method.

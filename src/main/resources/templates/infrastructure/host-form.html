@@ -96,7 +96,7 @@
                             <div class="input-group has-validation">
                                 <input type="password" class="form-control" th:field="*{sshPassword}" th:errorclass="is-invalid" autocomplete="new-password"
                                        th:placeholder="*{passwordStored} ? 'Leave blank to keep the saved password' : ''">
-                                <button class="btn btn-light border" type="button" data-toggle-password="sshPassword" aria-label="Show password">Show</button>
+                                <button class="btn btn-light border" type="button" data-toggle-password="sshPassword" aria-label="Show password" title="Show password"><i class="bx bx-show" aria-hidden="true"></i></button>
                                 <div class="invalid-feedback" th:errors="*{sshPassword}"></div>
                             </div>
                         </div>
