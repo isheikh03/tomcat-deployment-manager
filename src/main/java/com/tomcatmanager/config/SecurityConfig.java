@@ -94,7 +94,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/**").hasRole(ADMIN)
                         // Infrastructure configuration is administrator-only.
                         .requestMatchers(HttpMethod.POST, "/infrastructure/**").hasRole(ADMIN)
-                        .requestMatchers("/infrastructure/*/new", "/infrastructure/*/*/edit").hasRole(ADMIN)
+                        .requestMatchers("/infrastructure/*/new", "/infrastructure/*/*/edit", "/infrastructure/hosts/*/discover").hasRole(ADMIN)
                         // Application registry: administrators manage it; everyone signed in can read it.
                         .requestMatchers(HttpMethod.POST, "/applications/**").hasRole(ADMIN)
                         .requestMatchers("/applications/new", "/applications/*/edit").hasRole(ADMIN)

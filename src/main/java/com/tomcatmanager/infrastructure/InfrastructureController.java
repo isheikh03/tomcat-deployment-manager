@@ -330,7 +330,9 @@ public class InfrastructureController {
         if (result.hasErrors()) return hostForm(model, form);
         HostService.HostChange change = hostService.saveWithChanges(form);
         audit.hostSaved(change);
-        flash.addFlashAttribute("success", "Host saved. Run a connection test to verify it.");
+        flash.addFlashAttribute("success", change.created()
+                ? "Host saved. Run a connection test to verify it, then use Find Tomcat instances to add the Tomcat applications on it in one go."
+                : "Host saved. Run a connection test to verify it.");
         return "redirect:/infrastructure/hosts/" + change.host().getId();
     }
     @PostMapping("/hosts/{id}/delete") public String deleteHost(@PathVariable Long id, RedirectAttributes flash) {
