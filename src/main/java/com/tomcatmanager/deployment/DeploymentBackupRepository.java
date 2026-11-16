@@ -9,6 +9,7 @@ public interface DeploymentBackupRepository extends JpaRepository<DeploymentBack
     Optional<DeploymentBackup> findByTargetId(Long targetId);
     List<DeploymentBackup> findByTargetIdIn(Collection<Long> targetIds);
     List<DeploymentBackup> findByDeletedAtIsNullOrderByCreatedAtDesc();
+    List<DeploymentBackup> findAllByOrderByCreatedAtDesc();
 
     /** Bytes of server backup files currently kept (deleted backups excluded). */
     @org.springframework.data.jpa.repository.Query("""

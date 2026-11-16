@@ -92,7 +92,13 @@ public class ReleaseController {
         model.addAttribute("pageTitle", "Upload WAR");
         com.tomcatmanager.access.AccessScope s = access.current();
         // Only applications the user may upload to: they can deploy to an instance of the application's team.
-        model.addAttribute("applications", applications.findAllByOrderByNameAsc().stream().filter(a -> s.canUploadTo(a.getTeamId())).toList());
+        List<com.tomcatmanager.application.ManagedApplication> uploadable = applications.findAllByOrderByNameAsc().stream()
+                .filter(a -> s.canUploadTo(a.getTeamId())).toList();
+        model.addAttribute("applications", uploadable);
+        // Applications with automatic versions: what the next upload will be called.
+        java.util.Map<Long, String> previews = new java.util.HashMap<>();
+        for (var a : uploadable) if (a.isAutoVersion()) previews.put(a.getId(), service.previewVersion(a));
+        model.addAttribute("versionPreviews", previews);
         model.addAttribute("app", app);
         model.addAttribute("maxBytes", storage.maxBytes());
         model.addAttribute("maxSize", ArtifactStorage.humanSize(storage.maxBytes()));
@@ -156,9 +162,11 @@ public class ReleaseController {
     /** Removes the stored WAR file of a release to free space; the release and its history are kept (administrators). */
     @PostMapping("/{id}/remove-file")
     public String removeFile(@PathVariable long id, @RequestParam(required = false) String reason,
+                             @RequestParam(defaultValue = "false") boolean confirm,
                              @RequestParam(defaultValue = "false") boolean confirmRollbackPoint, Principal principal, RedirectAttributes flash) {
         try {
-            cleanup.removeReleaseFile(id, principal.getName(), reason, confirmRollbackPoint);
+            // confirm: the file is in use or a rollback point (confirmRollbackPoint: the older form field, still accepted).
+            cleanup.removeReleaseFile(id, principal.getName(), reason, confirm || confirmRollbackPoint);
             flash.addFlashAttribute("success", "The WAR file was removed from storage. The release and its deployment history are kept; "
                     + "upload the identical WAR again to make it deployable.");
         } catch (IllegalArgumentException | IllegalStateException e) {
@@ -183,9 +191,10 @@ public class ReleaseController {
     @PostMapping("/cleanup")
     public String cleanupConfirm(@RequestParam(name = "artifactIds", required = false) List<Long> artifactIds,
                                  @RequestParam(required = false) String reason, @RequestParam(required = false) Long app,
-                                 @RequestParam(defaultValue = "") String q, Principal principal, RedirectAttributes flash) {
+                                 @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "false") boolean confirmProtected,
+                                 Principal principal, RedirectAttributes flash) {
         try {
-            StorageCleanupService.Result result = cleanup.removeReleaseFiles(artifactIds, principal.getName(), reason);
+            StorageCleanupService.Result result = cleanup.removeReleaseFiles(artifactIds, principal.getName(), reason, confirmProtected);
             flash.addFlashAttribute(result.removed() > 0 && result.problems().isEmpty() ? "success" : "error", result.message("WAR file"));
         } catch (IllegalArgumentException e) {
             flash.addFlashAttribute("error", e.getMessage());

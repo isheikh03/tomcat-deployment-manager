@@ -117,6 +117,15 @@ public class RollbackPreflight {
             if (instance.getDeploymentFilename() != null && !instance.getDeploymentFilename().equals(original.getTargetFilename()))
                 warnings.add("The instance now deploys " + instance.getDeploymentFilename() + "; the rollback restores " + original.getTargetFilename()
                         + " (" + original.getContextPath() + "), the file this deployment replaced.");
+            if (instance.restartsTomcat()) {
+                try {
+                    com.tomcatmanager.infrastructure.TomcatRestart.Commands restart = com.tomcatmanager.infrastructure.TomcatRestart.commandsFor(instance);
+                    warnings.add("Tomcat on this instance is restarted for the rollback (" + restart.stop() + ", then " + restart.start()
+                            + "): every application on it is unavailable until Tomcat has started again.");
+                } catch (IllegalArgumentException e) {
+                    blockers.add(e.getMessage() + " Fix the instance's restart settings.");
+                }
+            }
             if (!instance.isHealthCheckEnabled())
                 warnings.add("The application health check is off for this instance: the restored version will not be verified.");
             else if (instance.getHealthUrl() == null)

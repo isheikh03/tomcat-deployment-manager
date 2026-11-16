@@ -76,18 +76,27 @@ public class ConnectionTestService {
         if (instance.getDeploymentMethod() == TomcatInstance.DeploymentMethod.SSH_SFTP) {
             return run(host.getId(), instance.getId(), ConnectionTestResult.TestType.INSTANCE_SSH_SFTP, actor, report -> {
                 report.notApplicable(CheckType.MANAGER_ENDPOINT, CheckType.MANAGER_AUTHENTICATION, CheckType.MANAGER_PERMISSIONS);
+                // The optional Tomcat restart is checked too (nothing is stopped); invalid settings are reported as such.
+                com.tomcatmanager.infrastructure.TomcatRestart.Commands restart = null;
+                if (instance.restartsTomcat()) {
+                    try { restart = com.tomcatmanager.infrastructure.TomcatRestart.commandsFor(instance); }
+                    catch (IllegalArgumentException e) { report.failed(CheckType.TOMCAT_RESTART, e.getMessage()); }
+                } else report.notApplicable(CheckType.TOMCAT_RESTART);
                 InetAddress address = resolve(host.getHostname(), report);
                 if (address == null) {
                     report.skip("Target not permitted or unresolvable.", CheckType.SSH_CONNECTION, CheckType.SSH_HOST_KEY,
                             CheckType.SSH_AUTHENTICATION, CheckType.SFTP_ACCESS, CheckType.DEPLOYMENT_DIRECTORY);
+                    if (restart != null) report.skip("Target not permitted or unresolvable.", CheckType.TOMCAT_RESTART);
                     return;
                 }
-                ssh.probe(sshTarget(host, address, timeout), instance.getRemoteDeploymentDirectory(), report);
+                ssh.probe(sshTarget(host, address, timeout), instance.getRemoteDeploymentDirectory(), restart, report);
+                if (restart != null && !report.has(CheckType.TOMCAT_RESTART)) report.skip("No SSH or SFTP session.", CheckType.TOMCAT_RESTART);
             });
         }
 
         return run(host.getId(), instance.getId(), ConnectionTestResult.TestType.INSTANCE_TOMCAT_MANAGER, actor, report -> {
-            report.notApplicable(CheckType.SSH_CONNECTION, CheckType.SSH_HOST_KEY, CheckType.SSH_AUTHENTICATION, CheckType.SFTP_ACCESS, CheckType.DEPLOYMENT_DIRECTORY);
+            report.notApplicable(CheckType.SSH_CONNECTION, CheckType.SSH_HOST_KEY, CheckType.SSH_AUTHENTICATION, CheckType.SFTP_ACCESS, CheckType.DEPLOYMENT_DIRECTORY,
+                    CheckType.TOMCAT_RESTART);
             ManagerUrl url = ManagerUrl.of(instance);
             if (resolve(url.host(), report) == null) {
                 report.skip("Target not permitted or unresolvable.", CheckType.MANAGER_ENDPOINT, CheckType.MANAGER_AUTHENTICATION, CheckType.MANAGER_PERMISSIONS);

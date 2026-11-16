@@ -64,12 +64,12 @@ class DeploymentAuthorizationTest {
         mvc.perform(get("/backups/cleanup").with(user("operator").roles("DEPLOYMENT_OPERATOR"))).andExpect(status().isForbidden());
         mvc.perform(post("/backups/cleanup").param("backupIds", "1").param("reason", "free disk space")
                 .with(csrf()).with(user("operator").roles("DEPLOYMENT_OPERATOR"))).andExpect(status().isForbidden());
-        verify(cleanup, never()).deleteBackups(any(), anyString(), anyString());
-        when(cleanup.deleteBackups(any(), anyString(), anyString()))
+        verify(cleanup, never()).deleteBackups(any(), anyString(), anyString(), anyBoolean());
+        when(cleanup.deleteBackups(any(), anyString(), anyString(), anyBoolean()))
                 .thenReturn(new StorageCleanupService.Result(1, 10, 0, java.util.List.of()));
         mvc.perform(post("/backups/cleanup").param("backupIds", "1").param("reason", "free disk space")
                 .with(csrf()).with(user("admin").roles("ADMIN"))).andExpect(status().is3xxRedirection());
-        verify(cleanup).deleteBackups(java.util.List.of(1L), "admin", "free disk space");
+        verify(cleanup).deleteBackups(java.util.List.of(1L), "admin", "free disk space", false);
     }
 
     private static final String BODY = "{\"requestId\":\"6f1c2a7e-0d5b-4c41-9a2e-1b0c3d4e5f60\",\"deployment\":{\"releaseId\":1,\"environment\":\"DEVELOPMENT\",\"targets\":[]},\"acknowledgeWarnings\":true}";

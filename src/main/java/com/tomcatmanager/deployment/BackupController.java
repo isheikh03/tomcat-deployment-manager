@@ -48,29 +48,53 @@ public class BackupController {
         return instanceRepository.findById(e.target().getInstanceId()).map(i -> s.canManageInstance(i.getHost().getTeamId())).orElse(false);
     }
 
+    /**
+     * Restore points, laid out like the Release library: a "Restore points" tab listing every restore point (server
+     * backups deleted to free space stay listed as "File removed"), and for administrators a "Storage cleanup" tab
+     * where they select server backups and delete their files. Both tabs follow the same instance and search filter.
+     */
     @GetMapping("/backups")
-    public String index(@RequestParam(required = false) Long instance, Model model) {
+    public String index(@RequestParam(required = false) Long instance, @RequestParam(defaultValue = "") String q,
+                        @RequestParam(defaultValue = "") String tab, Model model) {
         com.tomcatmanager.access.AccessScope s = access.current();
-        List<BackupService.Entry> all = visible(s);
+        List<BackupService.Entry> everything = service.listIncludingRemoved().stream()
+                .filter(e -> e.target().getInstanceId() != null && s.canViewInstance(e.target().getInstanceId())).toList();
         // Instances that have restore points, for the filter: id -> name.
         java.util.Map<Long, String> instances = new java.util.TreeMap<>();
-        for (BackupService.Entry e : all)
-            if (e.target().getInstanceId() != null) instances.putIfAbsent(e.target().getInstanceId(), e.target().getInstanceName());
+        for (BackupService.Entry e : everything) instances.putIfAbsent(e.target().getInstanceId(), e.target().getInstanceName());
         Long selected = instance != null && instances.containsKey(instance) ? instance : null;
-        List<BackupService.Entry> entries = selected == null ? all
-                : all.stream().filter(e -> selected.equals(e.target().getInstanceId())).toList();
-        model.addAttribute("pageTitle", "Backups");
+        String text = q.strip().toLowerCase(java.util.Locale.ROOT);
+        List<BackupService.Entry> entries = everything.stream()
+                .filter(e -> selected == null || selected.equals(e.target().getInstanceId()))
+                .filter(e -> text.isEmpty() || (e.target().getInstanceName() + " " + e.target().getContextPath() + " " + e.target().getTargetFilename()
+                        + " #" + e.target().getRun().getId()).toLowerCase(java.util.Locale.ROOT).contains(text))
+                .toList();
+        List<BackupService.Entry> current = everything.stream().filter(e -> !e.removed()).toList();
+        // Backups the user may delete (their teams' instances); only these appear in the Storage cleanup tab.
+        java.util.Set<Long> deletable = current.stream().filter(e -> e.serverBackup() && canDelete(e, s)).map(e -> e.backup().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        // Backups a rollback is restoring right now: locked until it has finished.
+        java.util.Set<Long> restoring = service.beingRestored();
+        List<BackupService.Entry> files = entries.stream().filter(e -> !e.removed() && deletable.contains(e.backup().getId())).toList();
+
+        model.addAttribute("pageTitle", "Restore points");
         model.addAttribute("entries", entries);
+        model.addAttribute("files", files);
+        model.addAttribute("removableCount", files.stream().filter(e -> !e.rollbackPoint() && !restoring.contains(e.backup().getId())).count());
+        model.addAttribute("storageTab", "storage".equals(tab) && s.isAdministrator());
         model.addAttribute("instances", instances);
         model.addAttribute("instance", selected);
-        // The summary cards describe all backups the user can see, whatever the filter.
-        model.addAttribute("serverBackupCount", all.stream().filter(BackupService.Entry::serverBackup).count());
-        model.addAttribute("protectedCount", all.stream().filter(BackupService.Entry::rollbackPoint).count());
-        model.addAttribute("missingCount", all.stream().filter(e -> !e.fileExists()).count());
+        model.addAttribute("q", q.strip());
+        model.addAttribute("filtered", selected != null || !text.isEmpty());
+        // The storage line describes all backups the user can see, whatever the filter.
+        model.addAttribute("serverBackupCount", current.stream().filter(BackupService.Entry::serverBackup).count());
+        model.addAttribute("removedCount", everything.stream().filter(e -> e.serverBackup() && e.removed()).count());
+        model.addAttribute("protectedCount", current.stream().filter(BackupService.Entry::rollbackPoint).count());
+        model.addAttribute("missingCount", current.stream().filter(e -> !e.fileExists()).count());
         model.addAttribute("totalSize", ArtifactStorage.humanSize(s.isEverything() ? service.totalServerBackupBytes()
-                : all.stream().filter(BackupService.Entry::serverBackup).mapToLong(e -> e.backup().getSizeBytes() == null ? 0 : e.backup().getSizeBytes()).sum()));
-        // Backups the user may delete (their teams' instances); the page offers selection and Delete only for these.
-        model.addAttribute("deletable", all.stream().filter(e -> canDelete(e, s)).map(e -> e.backup().getId()).collect(java.util.stream.Collectors.toSet()));
+                : current.stream().filter(BackupService.Entry::serverBackup).mapToLong(e -> e.backup().getSizeBytes() == null ? 0 : e.backup().getSizeBytes()).sum()));
+        model.addAttribute("deletable", deletable);
+        model.addAttribute("restoring", restoring);
         model.addAttribute("backupDir", properties.backupDir().toAbsolutePath().normalize().toString());
         model.addAttribute("retention", service.retentionPerContext());
         model.addAttribute("freeSpace", freeSpace());
@@ -86,23 +110,29 @@ public class BackupController {
     @GetMapping("/backups/cleanup")
     public String cleanupSelect(@RequestParam(required = false) Long instance, RedirectAttributes redirect) {
         if (instance != null) redirect.addAttribute("instance", instance);
+        redirect.addAttribute("tab", "storage");
         return "redirect:/backups";
     }
 
     @PostMapping("/backups/cleanup")
     public String cleanupConfirm(@RequestParam(name = "backupIds", required = false) List<Long> backupIds, @RequestParam(required = false) String reason,
-                                 @RequestParam(required = false) Long instance, Principal principal, RedirectAttributes flash) {
+                                 @RequestParam(required = false) Long instance, @RequestParam(defaultValue = "") String q,
+                                 @RequestParam(defaultValue = "false") boolean confirmProtected, Principal principal, RedirectAttributes flash) {
         // Every selected backup must be one the user may delete (their teams' instances); otherwise nothing is deleted.
         com.tomcatmanager.access.AccessScope s = access.current();
         if (backupIds != null) for (Long id : backupIds)
             if (!canDelete(visibleEntry(id, s), s)) throw new com.tomcatmanager.access.NotPermittedException("You can delete only backups of your teams' instances.");
         try {
-            StorageCleanupService.Result result = cleanup.deleteBackups(backupIds, principal.getName(), reason);
+            // confirmProtected: the selection includes current rollback points and the user confirmed losing them.
+            StorageCleanupService.Result result = cleanup.deleteBackups(backupIds, principal.getName(), reason, confirmProtected);
             flash.addFlashAttribute(result.removed() > 0 && result.problems().isEmpty() ? "success" : "error", result.message("backup"));
         } catch (IllegalArgumentException e) {
             flash.addFlashAttribute("error", e.getMessage());
         }
-        if (instance != null) flash.addAttribute("instance", instance); // back to the same filtered list
+        // Back to the same filtered list, on the Storage cleanup tab.
+        if (instance != null) flash.addAttribute("instance", instance);
+        if (!q.isBlank()) flash.addAttribute("q", q.strip());
+        flash.addAttribute("tab", "storage");
         return "redirect:/backups";
     }
 

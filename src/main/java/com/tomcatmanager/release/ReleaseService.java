@@ -35,11 +35,33 @@ public class ReleaseService {
     private final WarInspector inspector;
     private final TransactionTemplate tx;
     private final com.tomcatmanager.audit.AuditService audit;
+    private final java.time.ZoneId zone;
 
     public ReleaseService(ReleaseRepository releases, StoredArtifactRepository artifacts, ApplicationRepository applications,
-                          ArtifactStorage storage, WarInspector inspector, TransactionTemplate tx, com.tomcatmanager.audit.AuditService audit) {
+                          ArtifactStorage storage, WarInspector inspector, TransactionTemplate tx, com.tomcatmanager.audit.AuditService audit,
+                          com.tomcatmanager.common.DisplayTime time) {
         this.releases = releases; this.artifacts = artifacts; this.applications = applications;
-        this.storage = storage; this.inspector = inspector; this.tx = tx; this.audit = audit;
+        this.storage = storage; this.inspector = inspector; this.tx = tx; this.audit = audit; this.zone = java.time.ZoneId.of(time.zone());
+    }
+
+    /** What the next automatic version of the application looks like (empty for manual versioning). */
+    public String previewVersion(com.tomcatmanager.application.ManagedApplication application) {
+        if (!application.isAutoVersion()) return "";
+        return VersionPattern.preview(application.getVersionPattern(), zone, releases.versionLabels(application.getId()));
+    }
+
+    /** The automatic version for an upload of {@code war} named {@code filename}. */
+    private String autoLabel(com.tomcatmanager.application.ManagedApplication application, String filename, java.nio.file.Path war) {
+        String pattern = application.getVersionPattern();
+        VersionPattern.Inputs in = new VersionPattern.Inputs(java.time.Instant.now(), zone,
+                VersionPattern.usesFile(pattern) ? QuickReleaseNaming.versionFromFilename(filename) : null,
+                VersionPattern.usesManifest(pattern) ? QuickReleaseNaming.versionFromManifest(war) : null);
+        return VersionPattern.next(pattern, in, releases.versionLabels(application.getId()));
+    }
+
+    private static IllegalArgumentException typedVersionRefused(com.tomcatmanager.application.ManagedApplication application) {
+        return new IllegalArgumentException(application.getName() + " numbers its versions automatically (pattern " + application.getVersionPattern()
+                + "). Leave the version empty, or switch the application to manual versions.");
     }
 
     public record UploadCommand(long applicationId, String versionLabel, String releaseNotes, String originalFilename) { }
@@ -47,8 +69,11 @@ public class ReleaseService {
     public Release upload(UploadCommand command, InputStream content, String actor) throws IOException, InvalidWarException {
         ManagedApplication application = applications.findById(command.applicationId())
                 .orElseThrow(() -> new IllegalArgumentException("Choose an existing application."));
-        String label = validateLabel(command.versionLabel());
-        if (releases.existsByApplicationIdAndVersionLabelIgnoreCase(application.getId(), label))
+        // Automatic versioning: the version is built from the application's pattern once the file is staged.
+        boolean auto = application.isAutoVersion();
+        if (auto && command.versionLabel() != null && !command.versionLabel().isBlank()) throw typedVersionRefused(application);
+        String label = auto ? null : validateLabel(command.versionLabel());
+        if (label != null && releases.existsByApplicationIdAndVersionLabelIgnoreCase(application.getId(), label))
             throw new IllegalArgumentException("Version " + label + " already exists for " + application.getName() + ". Use a different version label.");
         String filename = sanitizeFilename(command.originalFilename());
         String notes = blankToNull(command.releaseNotes());
@@ -65,7 +90,8 @@ public class ReleaseService {
                             existing.getId());
                 });
             }
-            return store(application, staged, artifact, null, label, filename, notes, actor, "");
+            if (auto) label = autoLabel(application, filename, staged.path());
+            return store(application, staged, artifact, null, label, filename, notes, actor, auto ? " (version set automatically)" : "");
         } finally {
             storage.discard(staged); // no-op when the file was committed or already discarded
         }
@@ -101,7 +127,11 @@ public class ReleaseService {
                 }
             }
             String label;
-            if (requested != null) {
+            if (app.isAutoVersion()) {
+                // The application numbers its versions automatically: a typed version is refused, the pattern decides.
+                if (requested != null) throw typedVersionRefused(app);
+                label = autoLabel(app, filename, staged.path());
+            } else if (requested != null) {
                 if (releases.existsByApplicationIdAndVersionLabelIgnoreCase(app.getId(), requested))
                     throw new IllegalArgumentException("Version " + requested + " already exists for " + app.getName() + " with different content. Use another version, or leave it empty to number it automatically.");
                 label = requested;

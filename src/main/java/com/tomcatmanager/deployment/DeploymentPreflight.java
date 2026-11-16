@@ -143,6 +143,14 @@ public class DeploymentPreflight {
         else if (instance.getEnvironment() != environment) blockers.add("The instance belongs to " + instance.getEnvironment().label() + ", not " + environment.label() + ".");
         if (!instance.isEnabled()) blockers.add("The Tomcat instance is disabled.");
         if (!instance.getHost().isEnabled()) blockers.add("The Linux host is disabled.");
+        if (instance.restartsTomcat()) {
+            try {
+                com.tomcatmanager.infrastructure.TomcatRestart.Commands restart = com.tomcatmanager.infrastructure.TomcatRestart.commandsFor(instance);
+                warnings.add("Tomcat on this instance is restarted (" + restart.stop() + ", then " + restart.start() + "): every application on it is unavailable until Tomcat has started again.");
+            } catch (IllegalArgumentException e) {
+                blockers.add(e.getMessage() + " Fix the instance's restart settings.");
+            }
+        }
         if (!instance.isBackupEnabled())
             warnings.add("Backup is off for this instance: the current application is not saved first, so a failed deployment cannot be rolled back automatically.");
         if (!instance.isHealthCheckEnabled())

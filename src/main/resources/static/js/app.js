@@ -76,6 +76,14 @@
                         el.textContent = chosen.length ? chosen.length + " selected · " + human(bytes) : "Nothing selected";
                     });
                     form.querySelectorAll("[data-requires-selection='" + name + "']").forEach((el) => { el.disabled = chosen.length === 0; });
+                    // [data-protected-confirm="<name>"] appears, and its checkbox becomes required, once a box marked
+                    // data-protected (e.g. a file in use) is selected.
+                    const anyProtected = chosen.some((b) => b.dataset.protected === "true");
+                    form.querySelectorAll("[data-protected-confirm='" + name + "']").forEach((el) => {
+                        el.hidden = !anyProtected;
+                        el.querySelectorAll("input[type=checkbox]").forEach((c) => { c.required = anyProtected; if (!anyProtected) c.checked = false; });
+                    });
+                    // "Select all" covers every enabled box; protected ones then need the confirmation above.
                     const enabled = boxes().filter((b) => !b.disabled);
                     form.querySelectorAll("input[data-check-all='" + name + "']").forEach((all) => {
                         all.checked = enabled.length > 0 && enabled.every((b) => b.checked);

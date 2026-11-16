@@ -18,6 +18,8 @@ public final class ProbeReport {
     public void failed(CheckType type, String detail) { record(type, CheckStatus.FAILED, detail); }
     public void skip(String reason, CheckType... types) { for (CheckType t : types) record(t, CheckStatus.SKIPPED, reason); }
     public void notApplicable(CheckType... types) { for (CheckType t : types) record(t, CheckStatus.NOT_APPLICABLE, null); }
+    /** Whether a result was recorded for the check. */
+    public boolean has(CheckType type) { return checks.stream().anyMatch(c -> c.getCheckType() == type); }
 
     public void hostKey(HostKeyVerification verification, String presented) {
         this.hostKeyVerification = verification; this.presentedHostKey = presented;

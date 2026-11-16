@@ -7,6 +7,7 @@ import com.tomcatmanager.connectivity.SshConnectivityClient;
 import com.tomcatmanager.connectivity.TomcatManagerClient;
 import com.tomcatmanager.infrastructure.DeploymentFilename;
 import com.tomcatmanager.infrastructure.TomcatInstance;
+import com.tomcatmanager.infrastructure.TomcatRestart;
 import com.tomcatmanager.release.ArtifactStorage;
 import com.tomcatmanager.release.StoredArtifact;
 import org.apache.sshd.client.session.ClientSession;
@@ -62,6 +63,15 @@ public class TargetDeployers {
         String tempPath = SftpOperations.join(dir, "." + job.filename() + ".tdm-" + job.targetId() + ".part");
         TargetState phase = TargetState.BACKUP_IN_PROGRESS;
         boolean backupAvailable = false;
+        // Optional full restart around the replacement (no restart: Tomcat hot-deploys the changed WAR itself).
+        TomcatRestart.Commands restart;
+        try {
+            restart = instance.restartsTomcat() ? TomcatRestart.commandsFor(instance) : null;
+        } catch (IllegalArgumentException e) {
+            recorder.targetState(job.runId(), job.targetId(), TargetState.FAILED, e.getMessage() + " Fix the instance settings. Nothing was changed on the server.");
+            return;
+        }
+        boolean tomcatStopped = false;
 
         recorder.targetState(job.runId(), job.targetId(), phase, "Connecting to " + instance.getHost().getHostname() + " over SSH.");
         try (ClientSession session = ssh.openSession(connections.sshTargetFor(instance.getHost(), Duration.ofSeconds(instance.getTimeoutSeconds())));
@@ -133,7 +143,38 @@ public class TargetDeployers {
             recorder.info(job.runId(), job.targetId(), "UPLOAD_VERIFIED", "Uploaded file verified on the server (SHA-256 matches the " + what(job) + ").");
 
             phase = TargetState.DEPLOYING;
-            recorder.targetState(job.runId(), job.targetId(), phase, "Moving the verified file into place as " + finalPath + ".");
+            // Optional full restart: Tomcat is stopped while the WAR is replaced, then started again.
+            if (restart != null) {
+                recorder.targetState(job.runId(), job.targetId(), phase, "Stopping Tomcat: " + restart.stop());
+                Instant stopAt = Instant.now();
+                try {
+                    TomcatRestarter.run(session, restart, TomcatRestarter.Step.STOP);
+                } catch (IOException e) {
+                    SftpOperations.deleteQuietly(sftp, tempPath);
+                    // The stop may have half-worked; make sure Tomcat runs the old version again.
+                    String again = startAgain(session, restart, job);
+                    recorder.targetState(job.runId(), job.targetId(), TargetState.FAILED, "Tomcat could not be stopped: " + e.getMessage()
+                            + " The new WAR was not put in place. " + again);
+                    return;
+                }
+                tomcatStopped = true;
+                recorder.log(job.runId(), job.targetId(), DeploymentLog.Level.INFO, "TOMCAT_STOPPED", "Stopped Tomcat (" + restart.stop() + ").",
+                        Duration.between(stopAt, Instant.now()).toMillis());
+                if (restart.stopWaitSeconds() > 0) {
+                    recorder.info(job.runId(), job.targetId(), "TOMCAT_STOP_WAIT", "Waiting " + restart.stopWaitSeconds() + " s for Tomcat to shut down.");
+                    try { Thread.sleep(restart.stopWaitSeconds() * 1000L); }
+                    catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        SftpOperations.deleteQuietly(sftp, tempPath);
+                        recorder.targetState(job.runId(), job.targetId(), TargetState.FAILED, "Interrupted while Tomcat was stopping. The new WAR was not put in place. "
+                                + startAgain(session, restart, job));
+                        return;
+                    }
+                }
+            }
+            // With a restart the target is already DEPLOYING (stopping Tomcat): progress goes to the log, not the state.
+            if (restart == null) recorder.targetState(job.runId(), job.targetId(), phase, "Moving the verified file into place as " + finalPath + ".");
+            else recorder.info(job.runId(), job.targetId(), "WAR_REPLACING", "Moving the verified file into place as " + finalPath + ".");
             boolean atomic;
             try {
                 atomic = SftpOperations.replace(sftp, tempPath, finalPath);
@@ -142,21 +183,64 @@ public class TargetDeployers {
                 if (SftpOperations.statOrNull(sftp, tempPath) != null) {
                     SftpOperations.deleteQuietly(sftp, tempPath);
                     recorder.targetState(job.runId(), job.targetId(), TargetState.FAILED,
-                            "Could not move the WAR into place: " + DiagnosticSanitizer.describe(e) + ". Nothing was changed on the server.");
+                            "Could not move the WAR into place: " + DiagnosticSanitizer.describe(e) + ". Nothing was changed on the server."
+                                    + (tomcatStopped ? " " + startAgain(session, restart, job) : ""));
                     return;
                 }
                 throw e;
             }
-            recorder.info(job.runId(), job.targetId(), "REMOTE_DEPLOY_REQUESTED", (atomic ? "Atomically replaced " : "Replaced ") + job.filename()
-                    + "; Tomcat deploys it automatically (requires autoDeploy=\"true\" on the Host).");
+            if (restart != null) {
+                recorder.info(job.runId(), job.targetId(), "REMOTE_DEPLOY_REQUESTED", (atomic ? "Atomically replaced " : "Replaced ") + job.filename()
+                        + " while Tomcat was stopped.");
+                recorder.info(job.runId(), job.targetId(), "TOMCAT_STARTING", "Starting Tomcat: " + restart.start());
+                Instant startAt = Instant.now();
+                try {
+                    TomcatRestarter.run(session, restart, TomcatRestarter.Step.START);
+                } catch (IOException e) {
+                    tomcatStopped = false; // reported here, not by the generic handler
+                    recorder.targetState(job.runId(), job.targetId(), backupAvailable ? TargetState.ROLLBACK_REQUIRED : TargetState.FAILED,
+                            "The new " + job.filename() + " is in place, but Tomcat could not be started: " + e.getMessage()
+                                    + " Tomcat is probably stopped: start it on the server" + (backupAvailable ? ", or roll back." : "."));
+                    return;
+                }
+                tomcatStopped = false;
+                recorder.log(job.runId(), job.targetId(), DeploymentLog.Level.INFO, "TOMCAT_STARTED", "Started Tomcat (" + restart.start() + ").",
+                        Duration.between(startAt, Instant.now()).toMillis());
+            } else {
+                recorder.info(job.runId(), job.targetId(), "REMOTE_DEPLOY_REQUESTED", (atomic ? "Atomically replaced " : "Replaced ") + job.filename()
+                        + "; Tomcat deploys it automatically (requires autoDeploy=\"true\" on the Host).");
+            }
         } catch (RemoteOperationException e) {
-            failOrUnknown(job, phase, e.getMessage());
+            failOrUnknown(job, phase, e.getMessage() + (tomcatStopped ? " " + startAgainInNewSession(restart, job) : ""));
             return;
         } catch (IOException | RuntimeException e) {
-            failOrUnknown(job, phase, DiagnosticSanitizer.describe(e));
+            failOrUnknown(job, phase, DiagnosticSanitizer.describe(e) + (tomcatStopped ? " " + startAgainInNewSession(restart, job) : ""));
             return;
         }
         verifyHealth(job, backupAvailable, null);
+    }
+
+    /** Best effort after a failure while Tomcat may be stopped: start it again, and say what happened. */
+    private String startAgain(ClientSession session, TomcatRestart.Commands restart, TargetJob job) {
+        try {
+            TomcatRestarter.run(session, restart, TomcatRestarter.Step.START);
+            recorder.info(job.runId(), job.targetId(), "TOMCAT_STARTED", "Started Tomcat again (" + restart.start() + ") with the previous version.");
+            return "Tomcat was started again with the previous version.";
+        } catch (IOException e) {
+            recorder.warn(job.runId(), job.targetId(), "TOMCAT_START_FAILED", "Could not start Tomcat again: " + e.getMessage());
+            return "Tomcat could not be started again (" + e.getMessage() + "); start it on the server.";
+        }
+    }
+
+    /** After an unexpected failure while Tomcat was stopped (the session may be gone): start it over a new SSH session. */
+    private String startAgainInNewSession(TomcatRestart.Commands restart, TargetJob job) {
+        TomcatInstance instance = job.instance();
+        try (ClientSession session = ssh.openSession(connections.sshTargetFor(instance.getHost(), Duration.ofSeconds(instance.getTimeoutSeconds())))) {
+            return startAgain(session, restart, job);
+        } catch (IOException | RuntimeException e) {
+            recorder.warn(job.runId(), job.targetId(), "TOMCAT_START_FAILED", "Could not start Tomcat again: " + DiagnosticSanitizer.describe(e));
+            return "Tomcat had been stopped for the restart and could not be started again (" + DiagnosticSanitizer.describe(e) + "); start it on the server.";
+        }
     }
 
     // ---------------------------------------------------------------- Tomcat Manager

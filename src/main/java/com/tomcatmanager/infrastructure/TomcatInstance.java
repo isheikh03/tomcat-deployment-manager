@@ -49,6 +49,13 @@ public class TomcatInstance {
     @Min(1) @Max(300) @Column(nullable = false) private int timeoutSeconds = 15;
     @Min(0) @Max(5) @Column(nullable = false) private int maxRetries = 2;
     @Column(nullable = false) private boolean enabled = true;
+    /** Optional full Tomcat restart around SSH/SFTP deployments (see TomcatRestart); NONE = hot deployment. */
+    @Enumerated(EnumType.STRING) @Column(name = "restart_mode", nullable = false, length = 10) private TomcatRestart.Mode restartMode = TomcatRestart.Mode.NONE;
+    @Size(max = 100) @Column(name = "restart_service", length = 100) private String restartService;
+    @Column(name = "restart_use_sudo", nullable = false) private boolean restartUseSudo;
+    /** CATALINA_HOME for the Tomcat scripts; empty = the CATALINA_BASE. */
+    @Size(max = 255) @Column(name = "catalina_home", length = 255) private String catalinaHome;
+    @Min(0) @Max(300) @Column(name = "restart_stop_wait_seconds") private Integer restartStopWaitSeconds;
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "server_group_instances", joinColumns = @JoinColumn(name = "instance_id"), inverseJoinColumns = @JoinColumn(name = "group_id"))
     private Set<ServerGroup> groups = new LinkedHashSet<>();
@@ -61,6 +68,13 @@ public class TomcatInstance {
     public String getCatalinaBase(){return catalinaBase;} public void setCatalinaBase(String v){catalinaBase=v==null?null:v.trim();}
     public String getAppBase(){return appBase;} public void setAppBase(String v){appBase=v==null?null:v.trim();}
     public boolean isBackupEnabled(){return backupEnabled;} public void setBackupEnabled(boolean v){backupEnabled=v;}
+    public TomcatRestart.Mode getRestartMode(){return restartMode;} public void setRestartMode(TomcatRestart.Mode v){restartMode = v == null ? TomcatRestart.Mode.NONE : v;}
+    public String getRestartService(){return restartService;} public void setRestartService(String v){restartService = v == null || v.isBlank() ? null : v.strip();}
+    public boolean isRestartUseSudo(){return restartUseSudo;} public void setRestartUseSudo(boolean v){restartUseSudo=v;}
+    public String getCatalinaHome(){return catalinaHome;} public void setCatalinaHome(String v){catalinaHome = v == null || v.isBlank() ? null : v.strip();}
+    public Integer getRestartStopWaitSeconds(){return restartStopWaitSeconds;} public void setRestartStopWaitSeconds(Integer v){restartStopWaitSeconds=v;}
+    /** Tomcat is stopped and started around each deployment (SSH/SFTP only). */
+    public boolean restartsTomcat(){return restartMode != null && restartMode != TomcatRestart.Mode.NONE && deploymentMethod == DeploymentMethod.SSH_SFTP;}
     public boolean isHealthCheckEnabled(){return healthCheckEnabled;} public void setHealthCheckEnabled(boolean v){healthCheckEnabled=v;}
     public String getHealthUrl(){return healthUrl;} public void setHealthUrl(String v){healthUrl=v==null||v.isBlank()?null:v.trim();}
     public Integer getStartupTimeoutSeconds(){return startupTimeoutSeconds;} public void setStartupTimeoutSeconds(Integer v){startupTimeoutSeconds=v;}

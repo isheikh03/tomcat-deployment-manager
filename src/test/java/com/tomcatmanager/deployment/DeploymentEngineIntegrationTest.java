@@ -552,13 +552,13 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
     @Autowired com.tomcatmanager.release.ArtifactStorage storage;
     @Autowired org.springframework.web.context.WebApplicationContext web;
 
-    @Test void theRunningVersionIsKeptAnOldOneIsRemovedKeepingHistoryAndAnIdenticalUploadRestoresIt() throws Exception {
+    @Test void theRunningVersionNeedsConfirmationAnOldOneIsRemovedKeepingHistoryAndAnIdenticalUploadRestoresIt() throws Exception {
         jdbc.execute("TRUNCATE audit_events RESTART IDENTITY");
         TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "portal.war", Environment.DEVELOPMENT);
         deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
         assertThat(cleanup.describe(releases.find(releaseA.getId())).state()).isEqualTo(StorageCleanupService.FileState.RUNNING);
-        assertThatThrownBy(() -> cleanup.removeReleaseFile(releaseA.getId(), "admin", "free some space", true))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("Currently running on tomcat-a");
+        assertThatThrownBy(() -> cleanup.removeReleaseFile(releaseA.getId(), "admin", "free some space", false))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("Currently running on tomcat-a").hasMessageContaining("Confirm");
 
         // After 1.1 replaces it (with a server backup as rollback point), 1.0 is no longer needed.
         DeploymentRun second = deploy(releaseB, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
@@ -601,6 +601,23 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
         assertThat(releases.find(releaseA.getId()).getArtifact().getFileRemovedReason()).contains("was a rollback point");
     }
 
+    @Test void theFileOfARunningVersionIsRemovedOnlyWithConfirmation_theServerAndHistoryAreUntouched() {
+        TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "portal.war", Environment.DEVELOPMENT);
+        deploy(releaseA, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a));
+        Long file = releaseA.getArtifact().getId();
+        assertThat(cleanup.removeReleaseFiles(List.of(file), "admin", "disk almost full").skipped()).as("not confirmed").isEqualTo(1);
+
+        StorageCleanupService.Result result = cleanup.removeReleaseFiles(List.of(file), "admin", "disk almost full", true);
+        assertThat(result.removed()).isEqualTo(1);
+        Release removed = releases.find(releaseA.getId());
+        assertThat(removed.getArtifact().isFileRemoved()).isTrue();
+        assertThat(removed.getArtifact().getFileRemovedReason()).contains("was in use").contains("Currently running on tomcat-a");
+        assertThat(runRepository.findByReleaseIdOrderByRequestedAtDesc(releaseA.getId())).as("history kept").hasSize(1);
+
+        // The next deployment over it still succeeds; over SSH it backs up the running WAR from the server.
+        assertThat(deploy(releaseB, Environment.DEVELOPMENT, DeploymentRun.Strategy.SEQUENTIAL, target(a)).getState()).isEqualTo(DeploymentState.SUCCEEDED);
+    }
+
     @Test void selectedReleaseFilesAndBackupsAreRemovedNothingIsPreselectedAndProtectedOnesAreSkipped() throws Exception {
         TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "portal.war", Environment.DEVELOPMENT);
         TomcatInstance b = sshInstance("tomcat-b", "/opt/tomcat/b", "portal.war", Environment.DEVELOPMENT);
@@ -615,7 +632,7 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
                 .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity()).build();
         var admin = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN");
         String page = mvc.perform(get("/releases").param("tab", "storage").with(admin)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        assertThat(page).contains("Portal").contains("1.1").contains("Can be removed").contains("In use · kept").contains("Nothing selected");
+        assertThat(page).contains("Portal").contains("1.1").contains("Can be removed").contains("In use · needs confirmation").contains("Nothing selected");
         assertThat(page).as("nothing is preselected").doesNotContainPattern("name=\"artifactIds\"[^>]*checked");
         assertThat(mvc.perform(get("/releases/" + releaseA.getId()).with(admin)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
                 .contains("In use").contains("Currently running on tomcat-a");
@@ -642,7 +659,7 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
         assertThat(cleanup.serverBackups(b.getId())).hasSize(1).allSatisfy(e -> assertThat(e.rollbackPoint()).isTrue());
         String backupPage = mvc.perform(get("/backups").param("instance", String.valueOf(a.getId())).with(admin))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        assertThat(backupPage).contains("Current rollback point").contains("Delete selected backups").doesNotContain("<strong>tomcat-b</strong>");
+        assertThat(backupPage).contains("Current rollback point").contains("Remove selected files").doesNotContain("<strong>tomcat-b</strong>");
 
         long oldOnA = onA.stream().filter(e -> !e.rollbackPoint()).findFirst().orElseThrow().backup().getId();
         long pointOnA = onA.stream().filter(BackupService.Entry::rollbackPoint).findFirst().orElseThrow().backup().getId();
@@ -651,8 +668,16 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
                         .param("instance", String.valueOf(a.getId())).with(admin)
                         .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/backups?instance=" + a.getId()));
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/backups?instance=" + a.getId() + "&tab=storage"));
         assertThat(cleanup.serverBackups(a.getId())).extracting(e -> e.backup().getId()).containsExactly(pointOnA);
         assertThat(backups.findByDeletedAtIsNullOrderByCreatedAtDesc()).hasSize(2);
+
+        // With confirmation, the rollback point is deleted too; the deployment history keeps a record of it.
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/backups/cleanup")
+                        .param("backupIds", String.valueOf(pointOnA)).param("reason", "disk almost full").param("confirmProtected", "true")
+                        .with(admin).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().is3xxRedirection());
+        assertThat(cleanup.serverBackups(a.getId())).isEmpty();
+        assertThat(backups.findById(pointOnA).orElseThrow().getDeletedAt()).isNotNull();
     }
 }

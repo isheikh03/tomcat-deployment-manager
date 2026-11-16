@@ -436,6 +436,10 @@ public class InfrastructureController {
         TomcatInstance instance = viewableInstance(id, s);
         model.addAttribute("pageTitle", instance.getName());
         model.addAttribute("instance", instance);
+        // The exact restart commands, when a full Tomcat restart is configured (null when none or invalid).
+        TomcatRestart.Commands restartCommands = null;
+        try { if (instance.restartsTomcat()) restartCommands = TomcatRestart.commandsFor(instance); } catch (IllegalArgumentException ignored) { }
+        model.addAttribute("restartCommands", restartCommands);
         model.addAttribute("teamName", teams.findById(instance.getHost().getTeamId()).map(com.tomcatmanager.access.Team::getName).orElse(null));
         model.addAttribute("canManage", s.canManageInstance(instance.getHost().getTeamId()));
         model.addAttribute("canDeploy", s.canDeployTo(instance.getId()));
@@ -485,6 +489,7 @@ public class InfrastructureController {
         model.addAttribute("hosts", hosts.findAllByOrderByNameAsc().stream().filter(h -> s.canManageHost(h.getTeamId())).toList());
         model.addAttribute("groups", groups.findAll().stream().filter(g -> s.canManageTeam(g.getTeamId())).toList());
         model.addAttribute("deploymentMethods", TomcatInstance.DeploymentMethod.values());
+        model.addAttribute("restartModes", TomcatRestart.Mode.values());
         model.addAttribute("environments", Environment.values());
         model.addAttribute("encryptionConfigured", encryption.isConfigured());
         // Offer the Tomcat/Java versions reported by the last Tomcat Manager test, if any.

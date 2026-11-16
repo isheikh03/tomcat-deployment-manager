@@ -43,16 +43,24 @@
                             <select class="form-select" id="applicationId" name="applicationId" required>
                                 <option value="">Choose application…</option>
                                 <option th:each="a : ${applications}" th:value="${a.id}" th:text="${a.name}" th:selected="${a.id == app}"
-                                        th:attr="data-name=${a.name}"></option>
+                                        th:attr="data-name=${a.name},data-version-pattern=${a.autoVersion} ? ${a.versionPattern} : null,data-version-next=${a.autoVersion} ? ${versionPreviews.get(a.id)} : null"></option>
                             </select>
                             <div class="invalid-feedback">Choose the application this WAR belongs to.</div>
                             <div class="form-text">Missing? <a sec:authorize="hasRole('ADMIN')" th:href="@{/applications/new}">Register an application</a><span sec:authorize="!hasRole('ADMIN')">Ask an administrator to register it.</span></div>
                         </div>
                         <div class="col-md-5">
                             <label class="form-label fw-semibold" for="versionLabel">Version</label>
-                            <input class="form-control" id="versionLabel" name="versionLabel" required maxlength="100" placeholder="e.g. 2.4.1" autocomplete="off" spellcheck="false">
-                            <div class="invalid-feedback">Enter a version: letters, digits and . _ + - only.</div>
-                            <div class="form-text" data-version-hint>Filled in from the file name when possible.</div>
+                            <div data-version-manual>
+                                <input class="form-control" id="versionLabel" name="versionLabel" required maxlength="100" placeholder="e.g. 2.4.1" autocomplete="off" spellcheck="false">
+                                <div class="invalid-feedback">Enter a version: letters, digits and . _ + - only.</div>
+                                <div class="form-text" data-version-hint>Filled in from the file name when possible.</div>
+                            </div>
+                            <!-- Applications with automatic versions: the version is set from their pattern when the file is stored. -->
+                            <div data-version-auto hidden>
+                                <div class="form-control bg-light d-flex align-items-center gap-2" aria-live="polite">
+                                    <i class="bx bx-cog text-secondary"></i><code data-version-next></code></div>
+                                <div class="form-text">Set automatically from the pattern <code data-version-pattern></code>.</div>
+                            </div>
                         </div>
                     </div>
 

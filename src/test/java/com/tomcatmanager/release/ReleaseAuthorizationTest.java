@@ -61,7 +61,7 @@ class ReleaseAuthorizationTest {
                     .andExpect(status().isForbidden());
         }
         verify(cleanup, never()).removeReleaseFile(org.mockito.ArgumentMatchers.anyLong(), anyString(), anyString(), org.mockito.ArgumentMatchers.anyBoolean());
-        verify(cleanup, never()).removeReleaseFiles(any(), anyString(), anyString());
+        verify(cleanup, never()).removeReleaseFiles(any(), anyString(), anyString(), org.mockito.ArgumentMatchers.anyBoolean());
 
         mvc.perform(post("/releases/1/remove-file").param("reason", "free disk space").with(csrf()).with(user("admin").roles("SUPER_ADMIN", "ADMIN")))
                 .andExpect(status().is3xxRedirection());
@@ -94,8 +94,12 @@ class ReleaseAuthorizationTest {
         mvc.perform(multipart("/api/releases").file(war()).param("applicationId", "1").param("versionLabel", "1.0")
                         .with(csrf()).with(user("admin").roles("ADMIN")))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.message").value("The archive has no WEB-INF/ directory."));
+        // The version may be left out (automatic versions); for a manual application the service refuses it as a bad request.
+        when(releaseService.upload(org.mockito.ArgumentMatchers.argThat(c -> c != null && c.versionLabel() == null), any(InputStream.class), anyString()))
+                .thenThrow(new IllegalArgumentException("Enter a version label, e.g. 1.4.2."));
         mvc.perform(multipart("/api/releases").file(war()).param("applicationId", "1")
-                .with(csrf()).with(user("admin").roles("ADMIN"))).andExpect(status().isBadRequest());
+                .with(csrf()).with(user("admin").roles("ADMIN")))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Enter a version label, e.g. 1.4.2."));
     }
 
     @Test void uploadWithoutCsrfIsRejected() throws Exception {

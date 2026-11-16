@@ -23,6 +23,8 @@ public class ApplicationForm {
     @Min(8) @Max(40) private Integer maxJavaVersion;
     private List<String> supportedTomcatVersions = new ArrayList<>();
     @Size(max = 2000) private String otherRequirements;
+    @NotNull private ManagedApplication.VersionMode versionMode = ManagedApplication.VersionMode.MANUAL;
+    @Size(max = 60) private String versionPattern;
 
     public static ApplicationForm from(ManagedApplication a) {
         ApplicationForm f = new ApplicationForm();
@@ -30,6 +32,7 @@ public class ApplicationForm {
         f.id = a.getId(); f.version = a.getVersion(); f.name = a.getName(); f.description = a.getDescription();
         f.servletApi = a.getServletApi(); f.minJavaVersion = a.getMinJavaVersion(); f.maxJavaVersion = a.getMaxJavaVersion();
         f.supportedTomcatVersions = new ArrayList<>(a.getSupportedTomcatList()); f.otherRequirements = a.getOtherRequirements();
+        f.versionMode = a.getVersionMode(); f.versionPattern = a.getVersionPattern();
         return f;
     }
 
@@ -44,4 +47,6 @@ public class ApplicationForm {
     public List<String> getSupportedTomcatVersions() { return supportedTomcatVersions; }
     public void setSupportedTomcatVersions(List<String> v) { supportedTomcatVersions = v == null ? new ArrayList<>() : v; }
     public String getOtherRequirements() { return otherRequirements; } public void setOtherRequirements(String v) { otherRequirements = v; }
+    public ManagedApplication.VersionMode getVersionMode() { return versionMode; } public void setVersionMode(ManagedApplication.VersionMode v) { versionMode = v; }
+    public String getVersionPattern() { return versionPattern; } public void setVersionPattern(String v) { versionPattern = v; }
 }

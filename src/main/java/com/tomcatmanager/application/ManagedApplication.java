@@ -13,6 +13,9 @@ public class ManagedApplication {
     /** Which Servlet API the application is built against; DETECT uses what the WAR inspection found. */
     public enum ServletApi { DETECT, JAVAX, JAKARTA }
 
+    /** How release versions are set: typed at every upload, or built from {@link #getVersionPattern()} (see VersionPattern). */
+    public enum VersionMode { MANUAL, AUTO }
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     /** Owning team, chosen when the record is created and fixed afterwards. Left empty, the database uses the default team. */
     @Column(name = "team_id", updatable = false) private Long teamId;
@@ -24,6 +27,9 @@ public class ManagedApplication {
     /** Comma-separated Tomcat lines such as {@code 10.1,11.0}; empty means "any". */
     @Column(name = "supported_tomcat_versions", length = 200) private String supportedTomcatVersions;
     @Column(name = "other_requirements", length = 2000) private String otherRequirements;
+    @Enumerated(EnumType.STRING) @Column(name = "version_mode", nullable = false, length = 10) private VersionMode versionMode = VersionMode.MANUAL;
+    /** For AUTO: e.g. {@code 1.0.{n}}; kept when switching back to MANUAL so it can be reused. */
+    @Column(name = "version_pattern", length = 60) private String versionPattern;
     @Column(nullable = false, updatable = false) private Instant createdAt = Instant.now();
     @Column(nullable = false, updatable = false, length = 120) private String createdBy;
     @Column(nullable = false) private Instant updatedAt = Instant.now();
@@ -47,6 +53,12 @@ public class ManagedApplication {
     public void setSupportedTomcatVersions(String v) { supportedTomcatVersions = v; }
     public String getOtherRequirements() { return otherRequirements; }
     public void setOtherRequirements(String v) { otherRequirements = v; }
+    public VersionMode getVersionMode() { return versionMode; }
+    public void setVersionMode(VersionMode v) { versionMode = v == null ? VersionMode.MANUAL : v; }
+    public String getVersionPattern() { return versionPattern; }
+    public void setVersionPattern(String v) { versionPattern = v == null || v.isBlank() ? null : v.strip(); }
+    /** Versions are built from the pattern at every upload. */
+    public boolean isAutoVersion() { return versionMode == VersionMode.AUTO && versionPattern != null; }
     public Instant getCreatedAt() { return createdAt; }
     public String getCreatedBy() { return createdBy; }
     public Instant getUpdatedAt() { return updatedAt; }

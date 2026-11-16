@@ -2,12 +2,12 @@
 --   psql -h <host> -U <user> -d <database> -v ON_ERROR_STOP=1 -f full_schema_with_default_users.sql
 -- Never rename it to V<n>__*.sql, R__*.sql or a callback name: Flyway would run it automatically.
 --
--- Contains migrations V1 to V12 merged in order, plus the three default accounts.
+-- Contains migrations V1 to V14 merged in order, plus the three default accounts.
 -- It is one transaction and fails on a database that already has these tables, so it changes nothing there.
 --
--- Afterwards, tell Flyway the schema is already at V12, on the first start of the application only:
+-- Afterwards, tell Flyway the schema is already at V14, on the first start of the application only:
 --   SPRING_FLYWAY_BASELINE_ON_MIGRATE=true
---   SPRING_FLYWAY_BASELINE_VERSION=12
+--   SPRING_FLYWAY_BASELINE_VERSION=14
 -- Without these the application refuses to start, because the schema is not empty and has no Flyway history.
 --
 -- SECURITY: the accounts below have well-known passwords (admin/admin, operator/operator, viewer/viewer).
@@ -653,6 +653,30 @@ SELECT id, 'TEAM', default_team_id(),
        'Access before teams were introduced', 'system'
 FROM app_users
 WHERE role IN ('DEPLOYMENT_OPERATOR', 'VIEWER');
+
+
+-- ==================================================================
+-- V13__application_version_pattern.sql
+-- ==================================================================
+
+ALTER TABLE applications ADD COLUMN version_mode VARCHAR(10) NOT NULL DEFAULT 'MANUAL';
+ALTER TABLE applications ADD COLUMN version_pattern VARCHAR(60);
+ALTER TABLE applications ADD CONSTRAINT ck_applications_version_mode CHECK (version_mode IN ('MANUAL', 'AUTO'));
+ALTER TABLE applications ADD CONSTRAINT ck_applications_version_pattern CHECK (version_mode = 'MANUAL' OR version_pattern IS NOT NULL);
+
+
+-- ==================================================================
+-- V14__tomcat_restart.sql
+-- ==================================================================
+
+ALTER TABLE tomcat_instances ADD COLUMN restart_mode VARCHAR(10) NOT NULL DEFAULT 'NONE';
+ALTER TABLE tomcat_instances ADD COLUMN restart_service VARCHAR(100);
+ALTER TABLE tomcat_instances ADD COLUMN restart_use_sudo BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE tomcat_instances ADD COLUMN catalina_home VARCHAR(255);
+ALTER TABLE tomcat_instances ADD COLUMN restart_stop_wait_seconds INTEGER;
+ALTER TABLE tomcat_instances ADD CONSTRAINT ck_tomcat_instances_restart_mode CHECK (restart_mode IN ('NONE', 'SYSTEMD', 'SCRIPTS'));
+ALTER TABLE tomcat_instances ADD CONSTRAINT ck_tomcat_instances_restart_service CHECK (restart_mode <> 'SYSTEMD' OR restart_service IS NOT NULL);
+ALTER TABLE tomcat_instances ADD CONSTRAINT ck_tomcat_instances_restart_wait CHECK (restart_stop_wait_seconds IS NULL OR restart_stop_wait_seconds BETWEEN 0 AND 300);
 
 
 -- ==================================================================
