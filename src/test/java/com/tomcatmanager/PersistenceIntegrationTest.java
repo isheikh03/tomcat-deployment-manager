@@ -48,7 +48,7 @@ class PersistenceIntegrationTest extends DatabaseIntegrationTest {
 
     @Test void latestConnectionResultPerInstance() {
         ManagedHost host = host("it-host");
-        TomcatInstance instance = instance(host, "a", "/opt/tomcat/a", "appA.war");
+        TomcatInstance instance = instance(host, "a", "/opt/tomcat/a", "app.war");
         ProbeReport failed = new ProbeReport(); failed.failed(CheckType.SSH_CONNECTION, "refused");
         ProbeReport ok = new ProbeReport(); ok.success(CheckType.SSH_CONNECTION, "ok");
         Instant t = Instant.now();
@@ -70,8 +70,8 @@ class PersistenceIntegrationTest extends DatabaseIntegrationTest {
 
     @Test void deploymentFilenameIsUniquePerDeploymentDirectory() {
         ManagedHost host = host("it-host");
-        instance(host, "a", "/opt/tomcat/a", "appA.war");
-        instance(host, "b", "/opt/tomcat/b", "appA.war");
+        instance(host, "a", "/opt/tomcat/a", "app.war");
+        instance(host, "b", "/opt/tomcat/b", "app.war");
         assertThatThrownBy(() -> instance(host, "a2", "/opt/tomcat/a", "APPA.war")).isInstanceOf(DataIntegrityViolationException.class);
     }
 

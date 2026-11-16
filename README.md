@@ -150,7 +150,7 @@ left and the session settings on the right (protocol SFTP, host name, port, user
 
 ### Adding a Tomcat instance
 
-Set the **Deployment filename** (e.g. `appA.war`): every release deployed to this instance is renamed to it in the target Tomcat, so one uploaded WAR can run as `appA.war` (`/appA`) on one instance and `appB.war` (`/appB`) on another. The stored release is never renamed. Tomcat naming applies: `ROOT.war` → `/`, `shop#admin.war` → `/shop/admin`, `app##2.0.war` → `/app` version 2.0. Two instances deploying into the same directory cannot use the same file or context. The form previews the final path and context. *The upload itself is part of the deployment engine (Milestone 5); this milestone stores and validates the name.*
+Set the **Deployment filename** (e.g. `app.war`): every release deployed to this instance is renamed to it in the target Tomcat, so one uploaded WAR can run as `app.war` (`/app`) on one instance and `appB.war` (`/appB`) on another. The stored release is never renamed. Tomcat naming applies: `ROOT.war` → `/`, `shop#admin.war` → `/shop/admin`, `app##2.0.war` → `/app` version 2.0. Two instances deploying into the same directory cannot use the same file or context. The form previews the final path and context. *The upload itself is part of the deployment engine (Milestone 5); this milestone stores and validates the name.*
 
 Pick the deployment method as a card. For **Tomcat Manager**, enter one **Manager URL**
 (e.g. `https://tomcat01.example.com:8443/manager/text`; *Use host address* pre-fills it) plus user and
@@ -169,7 +169,7 @@ release page):
 2. **Environment:** one environment per deployment.
 3. **Targets:** individual instances, or a whole **server group** (its current members are resolved now
    and the exact instance list is recorded; later group changes never rewrite history). Each target
-   can use its own WAR filename (e.g. one release as `appA.war` on A and `appB.war` on B); the
+   can use its own WAR filename (e.g. one release as `app.war` on A and `appB.war` on B); the
    stored release is never renamed. The resulting context path is shown live.
 4. **Strategy:** one at a time (default, mandatory for Production) or parallel (2 to
    `DEPLOYMENT_MAX_PARALLEL_TARGETS`). In both modes no new target starts after a failure.

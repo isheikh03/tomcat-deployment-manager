@@ -156,13 +156,13 @@ class DeploymentEngineIntegrationTest extends DatabaseIntegrationTest {
     }
 
     @Test void oneReleaseIsDeployedUnderDifferentFileNamesPerTarget() throws Exception {
-        TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "appA.war", Environment.TESTING);
+        TomcatInstance a = sshInstance("tomcat-a", "/opt/tomcat/a", "app.war", Environment.TESTING);
         TomcatInstance b = sshInstance("tomcat-b", "/opt/tomcat/b", "appB.war", Environment.TESTING);
         DeploymentRun run = deploy(releaseA, Environment.TESTING, DeploymentRun.Strategy.PARALLEL, target(a), target(b, "custom-b.war"));
         assertThat(run.getState()).isEqualTo(DeploymentState.SUCCEEDED);
-        assertThat(Files.readAllBytes(serverRoot.resolve("opt/tomcat/a/webapps/appA.war"))).isEqualTo(warA);
+        assertThat(Files.readAllBytes(serverRoot.resolve("opt/tomcat/a/webapps/app.war"))).isEqualTo(warA);
         assertThat(Files.readAllBytes(serverRoot.resolve("opt/tomcat/b/webapps/custom-b.war"))).isEqualTo(warA);
-        assertThat(targets.findByRunIdOrderBySequenceAsc(run.getId())).extracting(DeploymentTarget::getContextPath).containsExactly("/appA", "/custom-b");
+        assertThat(targets.findByRunIdOrderBySequenceAsc(run.getId())).extracting(DeploymentTarget::getContextPath).containsExactly("/app", "/custom-b");
     }
 
     @Test void tomcatManagerDeploymentStreamsTheExactReleaseBytes() throws Exception {

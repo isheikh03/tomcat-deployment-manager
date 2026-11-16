@@ -1,5 +1,5 @@
 -- The WAR filename an uploaded release is renamed to when deployed to this instance
--- (e.g. appA.war -> context /appA). The canonical release artifact is never renamed.
+-- (e.g. app.war -> context /app). The canonical release artifact is never renamed.
 ALTER TABLE tomcat_instances ADD COLUMN deployment_filename VARCHAR(255);
 
 -- Two instances cannot both claim the same file in the same deployment directory.

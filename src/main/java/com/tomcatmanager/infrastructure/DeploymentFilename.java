@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 
 /**
  * Rules for the WAR filename a release is renamed to on a Tomcat instance. Tomcat derives the
- * context path from it: {@code appA.war} → {@code /appA}, {@code ROOT.war} → {@code /},
+ * context path from it: {@code app.war} → {@code /app}, {@code ROOT.war} → {@code /},
  * {@code shop#admin.war} → {@code /shop/admin}, {@code app##2.0.war} → {@code /app} (version 2.0).
  */
 public final class DeploymentFilename {
@@ -15,7 +15,7 @@ public final class DeploymentFilename {
 
     /** Returns a user-facing problem description, or null when the name is acceptable. */
     public static String problem(String filename) {
-        if (filename == null || filename.isBlank()) return "Enter the WAR filename to deploy as, e.g. appA.war.";
+        if (filename == null || filename.isBlank()) return "Enter the WAR filename to deploy as, e.g. app.war.";
         String f = filename.trim();
         if (f.contains("/") || f.contains("\\")) return "Enter a file name only, without a directory.";
         if (!f.toLowerCase(Locale.ROOT).endsWith(".war")) return "The file name must end with .war.";
