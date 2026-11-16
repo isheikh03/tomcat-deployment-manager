@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="dark" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('infra-hosts')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item">Infrastructure</li>
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure/hosts}">Linux hosts</a></li>
+        <li class="breadcrumb-item"><a th:href="@{/infrastructure/hosts/{id}(id=${host.id})}" th:text="${host.name}">host</a></li>
+        <li class="breadcrumb-item active">Find Tomcat instances</li>
+    </ol></nav>
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div class="d-flex align-items-center gap-3 min-w-0">
+            <span class="stat-icon bg-primary-transparent host-avatar"><i class="bx bx-search-alt"></i></span>
+            <div class="min-w-0">
+                <div class="eyebrow mb-1">LINUX HOST · TOMCAT INSTANCES</div>
+                <h1 class="h3 mb-1">Find Tomcat instances on <span th:text="${host.name}">host</span></h1>
+                <p class="text-muted mb-0">Scans <code th:text="${host.hostname}">host</code> and suggests the Tomcat applications that are not added yet.
+                    Tick the ones you want: they are saved with the required settings, and you complete the rest later.</p>
+            </div>
+        </div>
+        <form method="post" th:action="@{/infrastructure/hosts/{id}/discover(id=${host.id})}">
+            <button class="btn btn-primary btn-wave" type="submit" data-scan-button>
+                <i class="bx bx-search-alt me-1"></i><span th:text="${scanned} ? 'Scan again' : 'Scan server'">Scan server</span></button>
+        </form>
+    </div>
+
+    <div class="alert alert-danger" th:if="${scanError}" th:text="${scanError}" role="alert"></div>
+
+    <section class="panel" th:unless="${scanned}">
+        <h2 class="h6">How the scan works</h2>
+        <ul class="small text-secondary mb-0">
+            <li>It only <strong>reads files over SFTP</strong> with the host's SSH login; no command is run and nothing is changed on the server.</li>
+            <li>It looks at running Tomcat processes (<code>/proc</code>), systemd units named <code>*tomcat*.service</code>, and folders with
+                <code>conf/server.xml</code> below <code>/opt</code>, <code>/usr/share</code>, <code>/var/lib</code>, <code>/usr/local</code>, <code>/srv</code> and <code>/home</code>.</li>
+            <li>For each Tomcat it reads the HTTP port, the deployment folder, the version and the applications (WAR files) deployed there.</li>
+            <li>Places the SSH account may not read are skipped. Anything not found can still be added by hand.</li>
+        </ul>
+    </section>
+
+    <th:block th:if="${scanned}">
+        <div class="small mb-3" th:if="${tomcatCount != null}">
+            <span th:text="'Found ' + ${tomcatCount} + ' Tomcat installation' + (${tomcatCount == 1} ? '' : 's')"></span><span th:if="${alreadyAdded != null and alreadyAdded > 0}"
+                th:text="'; ' + ${alreadyAdded} + ' application' + (${alreadyAdded == 1} ? ' is' : 's are') + ' already added'"></span>.
+        </div>
+        <div class="alert alert-warning small" th:each="n : ${notes}" th:text="${n}"></div>
+        <div class="alert alert-danger" th:if="${formError}" th:text="${formError}"></div>
+
+        <section class="panel empty-state" th:if="${#lists.isEmpty(selection.rows)}">
+            <div class="empty-icon"><i class="bx bx-check-double"></i></div>
+            <h2 class="h6">Nothing new to add</h2>
+            <p class="text-secondary small mb-3">Every Tomcat application found on this server is already added, or no Tomcat was found.
+                You can still <a th:href="@{/infrastructure/instances/new(host=${host.id})}">add an instance by hand</a>.</p>
+        </section>
+
+        <form th:unless="${#lists.isEmpty(selection.rows)}" method="post" th:action="@{/infrastructure/hosts/{id}/discover/save(id=${host.id})}"
+              th:object="${selection}" data-discovery>
+            <section class="panel p-0 mb-3">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead><tr>
+                            <th style="width:36px"><input type="checkbox" class="form-check-input" data-select-all aria-label="Select all suggestions"></th>
+                            <th>Name <span class="text-danger">*</span></th><th>Deployment filename <span class="text-danger">*</span></th>
+                            <th>Environment <span class="text-danger">*</span>
+                                <select class="form-select form-select-sm d-inline-block w-auto ms-2" data-environment-all aria-label="Set the environment of all rows">
+                                    <option value="">Set all…</option>
+                                    <option th:each="e : ${environments}" th:value="${e}" th:text="${e.label()}"></option>
+                                </select></th></tr></thead>
+                        <tbody>
+                        <th:block th:each="row, it : *{rows}">
+                            <!-- One heading per Tomcat installation -->
+                            <tr class="table-light" th:if="${it.index == 0 or selection.rows[it.index - 1].group != row.group}">
+                                <td colspan="4" class="small py-2">
+                                    <i class="bx bx-server me-1 text-secondary"></i><code th:text="${row.group}">/opt/tomcat</code>
+                                    <span class="text-secondary ms-2" th:text="${row.details}">details</span></td>
+                            </tr>
+                            <tr th:classappend="${rowErrors != null and rowErrors.containsKey(it.index)} ? ' table-danger'">
+                                <td><input type="checkbox" class="form-check-input" th:field="*{rows[__${it.index}__].selected}" data-row-select
+                                           th:attr="aria-label='Add ' + ${row.name}"></td>
+                                <td><input class="form-control form-control-sm" th:field="*{rows[__${it.index}__].name}" maxlength="120" required></td>
+                                <td>
+                                    <input class="form-control form-control-sm font-monospace" th:field="*{rows[__${it.index}__].deploymentFilename}" maxlength="200"
+                                           placeholder="e.g. app.war" spellcheck="false" autocomplete="off">
+                                    <div class="small text-secondary mt-1" th:if="${row.exploded}">Only an unpacked folder exists; deploying puts a WAR file next to it.</div>
+                                    <div class="small text-danger mt-1" th:if="${rowErrors != null and rowErrors.containsKey(it.index)}" th:text="${rowErrors.get(it.index)}"></div>
+                                </td>
+                                <td><select class="form-select form-select-sm" th:field="*{rows[__${it.index}__].environment}" data-row-environment>
+                                        <option value="">Choose…</option>
+                                        <option th:each="e : ${environments}" th:value="${e}" th:text="${e.label()}"></option>
+                                    </select>
+                                    <th:block>
+                                        <input type="hidden" th:field="*{rows[__${it.index}__].catalinaBase}">
+                                        <input type="hidden" th:field="*{rows[__${it.index}__].appBase}">
+                                        <input type="hidden" th:field="*{rows[__${it.index}__].httpPort}">
+                                        <input type="hidden" th:field="*{rows[__${it.index}__].tomcatVersion}">
+                                        <input type="hidden" th:field="*{rows[__${it.index}__].javaVersion}">
+                                        <input type="hidden" th:field="*{rows[__${it.index}__].healthUrl}">
+                                        <input type="hidden" th:field="*{rows[__${it.index}__].details}">
+                                        <input type="hidden" th:field="*{rows[__${it.index}__].group}">
+                                        <input type="hidden" th:field="*{rows[__${it.index}__].exploded}">
+                                    </th:block></td>
+                            </tr>
+                        </th:block>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="panel mb-3">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button class="btn btn-primary" type="submit" data-add-selected><i class="bx bx-plus me-1"></i>Add selected instances</button>
+                    <span class="small fw-semibold" data-selected-count></span>
+                    <span class="flex-grow-1"></span>
+                    <a class="btn btn-light border" th:href="@{/infrastructure/hosts/{id}(id=${host.id})}">Cancel</a>
+                </div>
+                <p class="small text-secondary mb-0 mt-2">Each instance is saved with SSH / SFTP deployment, its Tomcat folder, port, version and backup on.
+                    The <strong>health check is off</strong> until you confirm its URL (a suggestion is filled in); monitoring, restart and groups are left for later.
+                    Edit each instance to complete it.</p>
+            </section>
+        </form>
+    </th:block>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/discover.js}"></script>
+</body>
+</html>
