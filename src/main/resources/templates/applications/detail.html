@@ -40,6 +40,12 @@
                     <dd class="col-7" th:text="${#lists.isEmpty(app.supportedTomcatList)} ? 'Any version' : ${#strings.listJoin(app.supportedTomcatList, ', ')}"></dd>
                     <dt class="col-5">Other</dt>
                     <dd class="col-7 text-prewrap" th:text="${app.otherRequirements ?: '—'}"></dd>
+                    <dt class="col-5">Versions</dt>
+                    <dd class="col-7">
+                        <span th:unless="${app.autoVersion}">Manual <span class="text-secondary">(typed at upload)</span></span>
+                        <th:block th:if="${app.autoVersion}">Automatic · <code th:text="${app.versionPattern}"></code>
+                            <div class="text-secondary" th:if="${nextVersion != null and !#strings.isEmpty(nextVersion)}">Next upload: <code th:text="${nextVersion}"></code></div>
+                        </th:block></dd>
                     <dt class="col-5">Registered</dt>
                     <dd class="col-7"><span th:text="${@time.format(app.createdAt)}"></span><br><span class="text-secondary" th:text="'by ' + ${app.createdBy}"></span></dd>
                     <dt class="col-5">Last change</dt>

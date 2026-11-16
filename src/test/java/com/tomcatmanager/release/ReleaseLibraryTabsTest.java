@@ -46,9 +46,11 @@ class ReleaseLibraryTabsTest {
     @MockitoBean DeploymentRunRepository deploymentRuns;
     @MockitoBean StorageCleanupService cleanup;
 
-    private static StorageCleanupService.ReleaseFile storedFile() {
+    private static StorageCleanupService.ReleaseFile storedFile() { return file(7L, StorageCleanupService.FileState.STORED, List.of()); }
+
+    private static StorageCleanupService.ReleaseFile file(long id, StorageCleanupService.FileState state, List<String> reasons) {
         StoredArtifact artifact = mock(StoredArtifact.class);
-        when(artifact.getId()).thenReturn(7L);
+        when(artifact.getId()).thenReturn(id);
         when(artifact.getSha256()).thenReturn("a".repeat(64));
         when(artifact.getSizeBytes()).thenReturn(4096L);
         ManagedApplication app = mock(ManagedApplication.class);
@@ -59,7 +61,7 @@ class ReleaseLibraryTabsTest {
         when(release.getVersionLabel()).thenReturn("1.0");
         when(release.getOriginalFilename()).thenReturn("sol.war");
         when(release.getUploadedAt()).thenReturn(Instant.parse("2026-11-01T10:00:00Z"));
-        return new StorageCleanupService.ReleaseFile(artifact, List.of(release), StorageCleanupService.FileState.STORED, List.of(), null, null);
+        return new StorageCleanupService.ReleaseFile(artifact, List.of(release), state, reasons, null, null);
     }
 
     @BeforeEach void library() {
@@ -91,6 +93,20 @@ class ReleaseLibraryTabsTest {
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             assertThat(page).contains("id=\"tab-releases\"").doesNotContain("tab-storage", "name=\"artifactIds\"", "Remove selected files");
         }
+    }
+
+    @Test void filesInUseCanBeSelectedButNeedConfirmation_filesBeingDeployedAreLocked() throws Exception {
+        List<StorageCleanupService.ReleaseFile> files = List.of(storedFile(),
+                file(8L, StorageCleanupService.FileState.RUNNING, List.of("Currently running on tomcat-a at /sol")),
+                file(9L, StorageCleanupService.FileState.DEPLOYING, List.of("Being deployed by deployment #4")));
+        when(cleanup.releaseFiles(any(), anyString())).thenReturn(files);
+        String page = mvc.perform(get("/releases").param("tab", "storage").with(user("admin").roles("SUPER_ADMIN", "ADMIN")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(page).contains("In use · needs confirmation", "Currently running on tomcat-a", "Being deployed · locked",
+                "data-protected-confirm=\"artifactIds\"", "name=\"confirmProtected\"");
+        assertThat(page).containsPattern("value=\"8\"[^>]*data-protected=\"true\"");
+        assertThat(page).containsPattern("value=\"9\"[^>]*disabled|disabled[^>]*value=\"9\"");
+        assertThat(page).doesNotContainPattern("value=\"7\"[^>]*data-protected");
     }
 
     @Test void theOldCleanupAddressOpensTheTab() throws Exception {

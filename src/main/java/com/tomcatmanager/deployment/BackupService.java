@@ -20,12 +20,15 @@ import java.util.NoSuchElementException;
 
 /**
  * Backup management: lists restore points, verifies their integrity and deletes server backups.
- * The restore point of a deployment that can still be rolled back is never deleted, neither by a
- * user nor by retention.
+ * Retention never deletes the restore point of a deployment that can still be rolled back; a user
+ * deletes it only with explicit confirmation. A backup that a rollback is restoring right now is
+ * never deleted.
  */
 @Service
 public class BackupService {
     private static final Logger log = LoggerFactory.getLogger(BackupService.class);
+    private static final java.util.Set<DeploymentState> ACTIVE = java.util.EnumSet.of(DeploymentState.PENDING, DeploymentState.VALIDATING,
+            DeploymentState.RUNNING, DeploymentState.CANCEL_REQUESTED);
 
     private final DeploymentBackupRepository backups;
     private final DeploymentTargetRepository targets;
@@ -35,11 +38,20 @@ public class BackupService {
     private final SettingsService settings;
     private final AuditService audit;
     private final TransactionTemplate tx;
+    private final DeploymentRunRepository runs;
 
     public BackupService(DeploymentBackupRepository backups, DeploymentTargetRepository targets, RestorePoints restorePoints, RollbackPreflight rollbacks,
-                         DeploymentRecorder recorder, SettingsService settings, AuditService audit, TransactionTemplate tx) {
+                         DeploymentRecorder recorder, SettingsService settings, AuditService audit, TransactionTemplate tx, DeploymentRunRepository runs) {
         this.backups = backups; this.targets = targets; this.restorePoints = restorePoints; this.rollbacks = rollbacks;
-        this.recorder = recorder; this.settings = settings; this.audit = audit; this.tx = tx;
+        this.recorder = recorder; this.settings = settings; this.audit = audit; this.tx = tx; this.runs = runs;
+    }
+
+    /** Backups that a rollback is restoring right now: they are never deleted until it has finished. */
+    public java.util.Set<Long> beingRestored() {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        for (DeploymentRun r : runs.findByStateIn(ACTIVE))
+            if (r.isRollback() && r.getRollbackBackupId() != null) ids.add(r.getRollbackBackupId());
+        return ids;
     }
 
     /** Server backups kept per instance and context (runtime setting; 0 keeps all). */
@@ -48,6 +60,8 @@ public class BackupService {
     /** A backup with its deployment context; {@code rollbackPoint} means it is the current restore point and protected. */
     public record Entry(DeploymentBackup backup, DeploymentTarget target, boolean rollbackPoint, boolean fileExists) {
         public boolean serverBackup() { return backup.getSource() == DeploymentBackup.Source.REMOTE_WAR; }
+        /** The file was deleted to free space; the record stays for the deployment history. */
+        public boolean removed() { return backup.isDeleted(); }
         public String sizeLabel() { return backup.getSizeBytes() == null ? "—" : ArtifactStorage.humanSize(backup.getSizeBytes()); }
     }
 
@@ -56,6 +70,19 @@ public class BackupService {
         for (DeploymentBackup b : backups.findByDeletedAtIsNullOrderByCreatedAtDesc()) {
             DeploymentTarget t = targets.findWithRun(b.getTargetId()).orElse(null);
             if (t == null) continue;
+            boolean exists = b.getSource() != DeploymentBackup.Source.REMOTE_WAR || Files.isRegularFile(restorePoints.backupFile(b));
+            entries.add(new Entry(b, t, rollbacks.isRollbackCandidate(t), exists));
+        }
+        return entries;
+    }
+
+    /** Every restore point, including server backups whose file was deleted to free space (shown as "File removed"). */
+    public List<Entry> listIncludingRemoved() {
+        List<Entry> entries = new ArrayList<>();
+        for (DeploymentBackup b : backups.findAllByOrderByCreatedAtDesc()) {
+            DeploymentTarget t = targets.findWithRun(b.getTargetId()).orElse(null);
+            if (t == null) continue;
+            if (b.isDeleted()) { entries.add(new Entry(b, t, false, false)); continue; }
             boolean exists = b.getSource() != DeploymentBackup.Source.REMOTE_WAR || Files.isRegularFile(restorePoints.backupFile(b));
             entries.add(new Entry(b, t, rollbacks.isRollbackCandidate(t), exists));
         }
@@ -87,6 +114,8 @@ public class BackupService {
         DeploymentBackup backup = find(backupId);
         if (backup.getSource() != DeploymentBackup.Source.REMOTE_WAR)
             throw new IllegalStateException("This restore point is a release in the library, not a backup file. Manage it in the release library.");
+        if (beingRestored().contains(backupId))
+            throw new IllegalStateException("This backup is being restored by a rollback right now. Try again when that rollback has finished.");
         DeploymentTarget t = targets.findWithRun(backup.getTargetId()).orElseThrow();
         boolean rollbackPoint = rollbacks.isRollbackCandidate(t);
         if (rollbackPoint && !confirmRollbackPoint)
@@ -107,13 +136,14 @@ public class BackupService {
         int keep = settings.backupRetentionPerContext();
         if (keep <= 0) return;
         try {
+            java.util.Set<Long> restoring = beingRestored();
             Map<String, List<Entry>> byContext = new LinkedHashMap<>();
             for (Entry e : list()) if (e.serverBackup())
                 byContext.computeIfAbsent(e.target().getInstanceId() + "|" + e.target().getContextPath(), k -> new ArrayList<>()).add(e);
             for (List<Entry> entries : byContext.values()) {
                 // list() is newest first
                 for (Entry e : entries.subList(Math.min(keep, entries.size()), entries.size())) {
-                    if (e.rollbackPoint()) continue;
+                    if (e.rollbackPoint() || restoring.contains(e.backup().getId())) continue;
                     remove(e.backup(), e.target(), "system", "Retention: only the newest " + keep + " backups per context are kept.");
                 }
             }

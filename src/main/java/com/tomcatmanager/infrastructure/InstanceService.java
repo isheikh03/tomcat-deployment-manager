@@ -83,6 +83,23 @@ public class InstanceService {
         if (f.getManagerSecret() != null && !f.getManagerSecret().isBlank() && !encryption.isConfigured())
             errors.reject("encryption", "TDL_APP_ENCRYPTION_KEY is not configured, so credentials cannot be stored.");
 
+        // Optional full restart: built from validated values only (no free-text command).
+        if (f.getRestartMode() != null && f.getRestartMode() != TomcatRestart.Mode.NONE) {
+            if (f.getDeploymentMethod() != TomcatInstance.DeploymentMethod.SSH_SFTP)
+                errors.rejectValue("restartMode", "method", "A full Tomcat restart is available for SSH / SFTP deployment only.");
+            if (f.getRestartMode() == TomcatRestart.Mode.SYSTEMD) {
+                String problem = TomcatRestart.serviceProblem(f.getRestartService());
+                if (problem != null) errors.rejectValue("restartService", "invalid", problem);
+            } else {
+                if (f.getCatalinaHome() != null && !f.getCatalinaHome().isBlank()) {
+                    String problem = TomcatRestart.pathProblem(f.getCatalinaHome());
+                    if (problem != null) errors.rejectValue("catalinaHome", "invalid", problem);
+                }
+                if (f.getCatalinaBase() != null && TomcatRestart.pathProblem(f.getCatalinaBase()) != null && !errors.hasFieldErrors("catalinaBase"))
+                    errors.rejectValue("catalinaBase", "restart", "For the Tomcat scripts: " + TomcatRestart.pathProblem(f.getCatalinaBase()));
+            }
+        }
+
         if (f.getDeploymentMethod() == TomcatInstance.DeploymentMethod.TOMCAT_MANAGER) {
             if (f.getManagerUsername() == null || f.getManagerUsername().isBlank())
                 errors.rejectValue("managerUsername", "required", "A Manager username is required for Tomcat Manager deployment.");
@@ -119,6 +136,8 @@ public class InstanceService {
         }
         i.setManagerUsername(blankToNull(f.getManagerUsername()));
         i.setTimeoutSeconds(f.getTimeoutSeconds()); i.setMaxRetries(f.getMaxRetries()); i.setEnabled(f.isEnabled());
+        i.setRestartMode(f.getRestartMode()); i.setRestartService(f.getRestartService()); i.setRestartUseSudo(f.isRestartUseSudo());
+        i.setCatalinaHome(f.getCatalinaHome() == null ? null : stripTrailingSlash(f.getCatalinaHome())); i.setRestartStopWaitSeconds(f.getRestartStopWaitSeconds());
         String credentials = null;
         if (f.isClearManagerSecret()) {
             i.setManagerSecretEncrypted(null);
@@ -141,7 +160,8 @@ public class InstanceService {
     private static String connectionKey(TomcatInstance i) {
         return i.getHost() == null ? "" : i.getHost().getId() + "|" + i.getDeploymentMethod() + "|" + i.getRemoteDeploymentDirectory() + "|" + i.getDeploymentFilename()
                 + "|" + i.getManagerProtocol() + "|" + i.getManagerHost() + "|" + i.getManagerPort() + "|" + i.getManagerEndpoint() + "|" + i.getManagerUsername()
-                + "|" + i.getHealthUrl() + "|" + i.isEnabled() + "|" + i.getEnvironment();
+                + "|" + i.getHealthUrl() + "|" + i.isEnabled() + "|" + i.getEnvironment()
+                + "|" + i.getRestartMode() + "|" + i.getRestartService() + "|" + i.isRestartUseSudo() + "|" + i.getCatalinaHome();
     }
 
     @Transactional

@@ -8,6 +8,7 @@ public enum CheckType {
     SSH_AUTHENTICATION("SSH authentication"),
     SFTP_ACCESS("SFTP session"),
     DEPLOYMENT_DIRECTORY("Deployment directory"),
+    TOMCAT_RESTART("Tomcat restart"),
     MANAGER_ENDPOINT("Tomcat Manager endpoint"),
     MANAGER_AUTHENTICATION("Tomcat Manager authentication"),
     MANAGER_PERMISSIONS("Tomcat Manager permissions");

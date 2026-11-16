@@ -44,9 +44,27 @@
         const submit = form.querySelector("[data-submit]");
         const errorBox = form.querySelector("[data-upload-error]");
         let file = null, versionTouched = false;
+        const manualBox = form.querySelector("[data-version-manual]");
+        const autoBox = form.querySelector("[data-version-auto]");
+
+        /** Applications with automatic versions (data-version-pattern on the option) need no typed version. */
+        const autoVersion = () => !!app.selectedOptions[0]?.dataset.versionPattern;
+        function showVersionMode() {
+            const option = app.selectedOptions[0];
+            const auto = autoVersion();
+            manualBox.hidden = auto;
+            autoBox.hidden = !auto;
+            version.required = !auto;
+            if (auto) {
+                version.classList.remove("is-invalid");
+                autoBox.querySelector("[data-version-next]").textContent = option.dataset.versionNext || "set on upload";
+                autoBox.querySelector("[data-version-pattern]").textContent = option.dataset.versionPattern;
+            }
+        }
 
         version.addEventListener("input", () => { versionTouched = true; version.classList.remove("is-invalid"); });
-        app.addEventListener("change", () => app.classList.remove("is-invalid"));
+        app.addEventListener("change", () => { app.classList.remove("is-invalid"); showVersionMode(); });
+        showVersionMode();
 
         function choose(selected) {
             fileError.textContent = "";
@@ -63,7 +81,7 @@
             file = selected;
             zone.classList.add("has-file");
             title.textContent = selected.name + " · " + humanSize(selected.size);
-            if (!app.value) guessApplication(app, selected.name);
+            if (!app.value) { guessApplication(app, selected.name); showVersionMode(); }
             const suggestion = suggestVersion(selected.name);
             if (suggestion && (!versionTouched || !version.value)) {
                 version.value = suggestion;
@@ -86,17 +104,18 @@
             errorBox.replaceChildren();
             let valid = true;
             if (!app.value) { app.classList.add("is-invalid"); valid = false; }
-            if (!VERSION_LABEL.test(version.value.trim())) { version.classList.add("is-invalid"); valid = false; }
+            if (!autoVersion() && !VERSION_LABEL.test(version.value.trim())) { version.classList.add("is-invalid"); valid = false; }
             if (!file) { fileError.textContent = fileError.textContent || "Choose a .war file."; zone.classList.add("is-invalid"); valid = false; }
             if (!valid) { form.querySelector(".is-invalid")?.focus(); return; }
-            send(form, file, { app, version, submit, errorBox });
+            send(form, file, { app, version: autoVersion() ? null : version, submit, errorBox });
         });
     }
 
     function send(form, file, ui) {
         const data = new FormData();
         data.append("applicationId", ui.app.value);
-        data.append("versionLabel", ui.version.value.trim());
+        // No version for applications with automatic versions: the server sets it from the pattern.
+        if (ui.version) data.append("versionLabel", ui.version.value.trim());
         data.append("releaseNotes", form.querySelector("#releaseNotes").value);
         data.append("file", file, file.name);
 

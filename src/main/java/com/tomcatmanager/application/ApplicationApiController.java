@@ -28,12 +28,14 @@ public class ApplicationApiController {
     public record ApplicationDto(Long id, String name, String description, ManagedApplication.ServletApi servletApi,
                                  Integer minJavaVersion, Integer maxJavaVersion, List<String> supportedTomcatVersions,
                                  String otherRequirements, long releaseCount, Instant createdAt, String createdBy,
-                                 Instant updatedAt, String updatedBy, long version, Long teamId) { }
+                                 Instant updatedAt, String updatedBy, long version, Long teamId,
+                                 ManagedApplication.VersionMode versionMode, String versionPattern) { }
 
     private ApplicationDto dto(ManagedApplication a) {
         return new ApplicationDto(a.getId(), a.getName(), a.getDescription(), a.getServletApi(), a.getMinJavaVersion(), a.getMaxJavaVersion(),
                 a.getSupportedTomcatList(), a.getOtherRequirements(), releases.countByApplicationId(a.getId()),
-                a.getCreatedAt(), a.getCreatedBy(), a.getUpdatedAt(), a.getUpdatedBy(), a.getVersion(), a.getTeamId());
+                a.getCreatedAt(), a.getCreatedBy(), a.getUpdatedAt(), a.getUpdatedBy(), a.getVersion(), a.getTeamId(),
+                a.getVersionMode(), a.getVersionPattern());
     }
 
     @GetMapping

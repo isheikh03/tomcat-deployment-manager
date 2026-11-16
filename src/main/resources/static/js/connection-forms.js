@@ -269,3 +269,34 @@ document.addEventListener("DOMContentLoaded", () => {
         sync();
     });
 });
+
+// Tomcat restart: shows the fields of the chosen method and the exact commands that will run (the server builds them
+// the same way from the validated values; nothing typed here is run as a command).
+document.addEventListener("DOMContentLoaded", () => {
+    const root = document.querySelector("[data-restart-settings]");
+    if (!root) return;
+    const form = root.closest("form");
+    const fields = root.querySelector("[data-restart-fields]");
+    const val = (name) => (form.querySelector("[name='" + name + "']")?.value || "").trim();
+    const strip = (p) => (p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p);
+    const sync = () => {
+        const mode = form.querySelector("input[data-restart-mode]:checked")?.value || "NONE";
+        fields.hidden = mode === "NONE";
+        root.querySelectorAll("[data-restart-for]").forEach((el) => { el.hidden = el.dataset.restartFor !== mode; });
+        const sudo = form.querySelector("input[type=checkbox][name='restartUseSudo']")?.checked ? "sudo -n " : "";
+        let stop = "", start = "";
+        if (mode === "SYSTEMD") {
+            const unit = "'" + (val("restartService") || "tomcat") + "'";
+            stop = sudo + "systemctl stop " + unit; start = sudo + "systemctl start " + unit;
+        } else if (mode === "SCRIPTS") {
+            const base = strip(val("catalinaBase") || "/opt/tomcat"), home = strip(val("catalinaHome") || base);
+            const env = "env CATALINA_BASE='" + base + "' ";
+            stop = sudo + env + "'" + home + "/bin/shutdown.sh'"; start = sudo + env + "'" + home + "/bin/startup.sh'";
+        }
+        root.querySelector("[data-restart-stop]").textContent = stop;
+        root.querySelector("[data-restart-start]").textContent = start;
+    };
+    form.querySelectorAll("input[data-restart-mode], [data-restart-input], [name='catalinaBase']")
+        .forEach((el) => { el.addEventListener("input", sync); el.addEventListener("change", sync); });
+    sync();
+});

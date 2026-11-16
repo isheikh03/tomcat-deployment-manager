@@ -80,6 +80,14 @@
                             <li><span class="config-icon"><i class="bx bx-history"></i></span><span class="config-label">Backup before deploy</span>
                                 <span class="config-value"><span th:if="${instance.backupEnabled}" class="badge text-bg-success">On</span>
                                     <span th:unless="${instance.backupEnabled}" class="badge text-bg-warning">Off: no rollback point</span></span></li>
+                            <li th:classappend="${restartCommands != null} ? ' stacked'"><span class="config-icon"><i class="bx bx-power-off"></i></span><span class="config-label">Tomcat restart</span>
+                                <span class="config-value">
+                                    <span th:unless="${instance.restartsTomcat()}" class="text-muted fw-normal">No restart (hot deployment)</span>
+                                    <th:block th:if="${restartCommands != null}"><span class="badge text-bg-info" th:text="${instance.restartMode.label()}">systemd</span>
+                                        <code class="config-code d-block mt-1" th:text="${restartCommands.stop()}"></code>
+                                        <code class="config-code d-block" th:text="${restartCommands.start()}"></code></th:block>
+                                    <span th:if="${instance.restartsTomcat() and restartCommands == null}" class="badge text-bg-danger">Invalid settings: edit the instance</span>
+                                </span></li>
                             <li><span class="config-icon"><i class="bx bx-timer"></i></span><span class="config-label">Timeout / retries</span>
                                 <span class="config-value" th:text="${instance.timeoutSeconds + ' s / ' + instance.maxRetries}"></span></li>
                             <li><span class="config-icon"><i class="bx bx-collection"></i></span><span class="config-label">Groups</span>

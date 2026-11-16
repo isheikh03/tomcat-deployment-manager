@@ -226,6 +226,51 @@
                         </div>
                     </div>
 
+                    <!-- Tomcat restart (SSH / SFTP only): commands are built from these settings, never typed in -->
+                    <div data-method="SSH_SFTP" data-restart-settings>
+                        <div class="form-section-title"><i class="bx bx-power-off"></i>Tomcat restart <span class="text-muted fw-normal fs-12 ms-1">optional: stop Tomcat while the WAR is replaced</span></div>
+                        <div class="method-cards mb-3" role="radiogroup" aria-label="Tomcat restart">
+                            <label class="method-card" th:each="m : ${restartModes}">
+                                <input type="radio" class="form-check-input" th:field="*{restartMode}" th:value="${m}" data-restart-mode>
+                                <span class="method-title" th:text="${m.label()}">mode</span>
+                                <span class="method-text" th:if="${m.name() == 'NONE'}">Tomcat keeps running and redeploys the changed WAR by itself (needs <code>autoDeploy="true"</code>). Only this application restarts.</span>
+                                <span class="method-text" th:if="${m.name() == 'SYSTEMD'}"><code>systemctl stop</code>, replace the WAR, <code>systemctl start</code>.</span>
+                                <span class="method-text" th:if="${m.name() == 'SCRIPTS'}"><code>shutdown.sh</code>, wait, replace the WAR, <code>startup.sh</code>.</span>
+                            </label>
+                        </div>
+                        <div class="invalid-feedback d-block mb-2" th:if="${#fields.hasErrors('restartMode')}" th:errors="*{restartMode}"></div>
+                        <div class="row g-3" data-restart-fields hidden>
+                            <div class="col-md-6" data-restart-for="SYSTEMD"><label class="form-label fw-semibold" for="restartService">systemd service</label>
+                                <input class="form-control font-monospace" th:field="*{restartService}" th:errorclass="is-invalid" maxlength="100" placeholder="tomcat" spellcheck="false" autocomplete="off" data-restart-input>
+                                <div class="invalid-feedback" th:errors="*{restartService}"></div>
+                                <div class="form-text">The unit name, e.g. <code>tomcat</code>, <code>tomcat9</code> or <code>tomcat@app1</code>.</div></div>
+                            <div class="col-md-6" data-restart-for="SCRIPTS"><label class="form-label fw-semibold" for="catalinaHome">CATALINA_HOME <span class="text-muted fw-normal small">(optional)</span></label>
+                                <input class="form-control font-monospace" th:field="*{catalinaHome}" th:errorclass="is-invalid" maxlength="255" placeholder="same as CATALINA_BASE" spellcheck="false" autocomplete="off" data-restart-input>
+                                <div class="invalid-feedback" th:errors="*{catalinaHome}"></div>
+                                <div class="form-text">Where <code>bin/shutdown.sh</code> and <code>bin/startup.sh</code> are. They run with this instance's CATALINA_BASE.</div></div>
+                            <div class="col-md-3" data-restart-for="SCRIPTS"><label class="form-label fw-semibold" for="restartStopWaitSeconds">Wait after stop (s)</label>
+                                <input type="number" class="form-control" th:field="*{restartStopWaitSeconds}" th:errorclass="is-invalid" min="0" max="300" placeholder="15">
+                                <div class="invalid-feedback" th:errors="*{restartStopWaitSeconds}"></div>
+                                <div class="form-text">shutdown.sh returns before Tomcat has stopped.</div></div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" th:field="*{restartUseSudo}" data-restart-input>
+                                    <label class="form-check-label fw-semibold" th:for="${#ids.prev('restartUseSudo')}">Use sudo</label>
+                                </div>
+                                <div class="form-text">Runs the commands with <code>sudo -n</code>: never asks for a password, so the SSH account needs a
+                                    <code>NOPASSWD</code> sudoers rule for exactly these two commands.</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="restart-preview small border rounded p-2 bg-light">
+                                    <div><span class="text-muted">Stop:</span> <code data-restart-stop></code></div>
+                                    <div><span class="text-muted">Start:</span> <code data-restart-start></code></div>
+                                    <div class="text-muted mt-1">While Tomcat is stopped, <strong>every application on it</strong> is unavailable. The deploy preview warns about it.
+                                        Run a connection test after saving: it checks these commands without stopping anything.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Other -->
                     <div class="form-section-title"><i class="bx bx-slider-alt"></i>Other</div>
                     <div class="row g-3">

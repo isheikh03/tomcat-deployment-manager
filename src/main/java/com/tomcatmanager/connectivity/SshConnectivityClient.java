@@ -62,7 +62,14 @@ public class SshConnectivityClient implements DisposableBean {
      * Runs connection, host-key, authentication and SFTP checks. When {@code deploymentDirectory}
      * is non-null the directory is inspected (read-only) as well.
      */
-    public void probe(SshTarget target, String deploymentDirectory, ProbeReport report) {
+    public void probe(SshTarget target, String deploymentDirectory, ProbeReport report) { probe(target, deploymentDirectory, null, report); }
+
+    /**
+     * As {@link #probe(SshTarget, String, ProbeReport)}, and with {@code restart} (an instance with a full Tomcat restart)
+     * also checks the restart settings without stopping anything: read-only state queries, file checks and
+     * {@code sudo -n -l} (asks sudo whether a command is allowed, without running it).
+     */
+    public void probe(SshTarget target, String deploymentDirectory, com.tomcatmanager.infrastructure.TomcatRestart.Commands restart, ProbeReport report) {
         String username = target.credentials() == null ? null : target.credentials().username();
         if (username == null || username.isBlank()) {
             report.failed(CheckType.SSH_CONNECTION, "No SSH username is configured for this host.");
@@ -123,7 +130,7 @@ public class SshConnectivityClient implements DisposableBean {
                 return;
             }
             report.success(CheckType.SSH_AUTHENTICATION, "Authenticated as '" + username + "' using " + describeMethod(target.credentials(), keys) + ".");
-            probeSftp(session, deploymentDirectory, timeoutMs, report);
+            probeSftp(session, deploymentDirectory, restart, timeoutMs, report);
         } catch (IOException e) {
             // Closing the session failed; results already recorded stand.
         }
@@ -222,11 +229,12 @@ public class SshConnectivityClient implements DisposableBean {
         return false;
     }
 
-    private void probeSftp(ClientSession session, String directory, long timeoutMs, ProbeReport report) {
+    private void probeSftp(ClientSession session, String directory, com.tomcatmanager.infrastructure.TomcatRestart.Commands restart, long timeoutMs, ProbeReport report) {
         try (SftpClient sftp = SftpClientFactory.instance().createSftpClient(session)) {
             String home = sftp.canonicalPath(".");
             report.success(CheckType.SFTP_ACCESS, "SFTP subsystem available (protocol v" + sftp.getVersion() + "); login directory " + home + ".");
             if (directory != null) probeDirectory(session, sftp, directory, timeoutMs, report);
+            if (restart != null) probeRestart(session, sftp, restart, timeoutMs, report);
         } catch (SshChannelOpenException e) {
             report.failed(CheckType.SFTP_ACCESS, "The server refused to open an SFTP channel. Is the SFTP subsystem enabled for this account?");
             if (directory != null) report.skip("No SFTP session.", CheckType.DEPLOYMENT_DIRECTORY);
@@ -280,6 +288,55 @@ public class SshConnectivityClient implements DisposableBean {
         } else {
             report.failed(CheckType.DEPLOYMENT_DIRECTORY, directory + " is readable but not writable by uid " + uid + " (" + modeText + ").");
         }
+    }
+
+    /**
+     * Checks the restart settings without stopping anything. systemd: {@code systemctl is-active} (read-only).
+     * Scripts: the files exist and are executable (SFTP). With sudo: {@code sudo -n -l <command>} for the stop and start
+     * commands, which only asks sudo whether they are allowed without a password. Without sudo the account's uid is read.
+     */
+    private static void probeRestart(ClientSession session, SftpClient sftp, com.tomcatmanager.infrastructure.TomcatRestart.Commands restart,
+                                     long timeoutMs, ProbeReport report) {
+        List<String> problems = new java.util.ArrayList<>(), notes = new java.util.ArrayList<>(), ok = new java.util.ArrayList<>();
+        Duration wait = Duration.ofMillis(Math.max(timeoutMs, 5000));
+        try {
+            if (restart.mode() == com.tomcatmanager.infrastructure.TomcatRestart.Mode.SCRIPTS) {
+                for (String script : restart.scripts()) {
+                    SftpClient.Attributes a;
+                    try { a = sftp.stat(script); } catch (SftpException e) { a = null; }
+                    if (a == null || !a.isRegularFile()) problems.add(script + " was not found");
+                    else if ((a.getPermissions() & 0111) == 0) problems.add(script + " is not executable");
+                }
+                if (problems.isEmpty()) ok.add("shutdown.sh and startup.sh found");
+            } else {
+                String state = runRestartQuery(session, restart.status(), wait).strip();
+                if (state.equals("active")) ok.add("the service is active");
+                else notes.add("systemctl reports the service as '" + (state.isEmpty() ? "unknown" : state) + "' (check the service name)");
+            }
+            if (restart.sudo()) {
+                for (String command : List.of(restart.stop(), restart.start())) {
+                    try { runRestartQuery(session, restart.sudoCheck(command), wait); }
+                    catch (IOException e) { problems.add("sudo does not allow `" + command + "` without a password (add a NOPASSWD sudoers rule for it)"); }
+                }
+                if (problems.isEmpty()) ok.add("sudo allows the stop and start commands without a password");
+            } else {
+                String uid = runFixedCommand(session, "id -u", timeoutMs).strip();
+                if (!uid.equals("0")) notes.add("the commands run without sudo as uid " + uid + ": this account must be allowed to stop and start Tomcat");
+            }
+        } catch (IOException | RuntimeException e) {
+            problems.add("could not be checked: " + DiagnosticSanitizer.describe(e));
+        }
+        String commands = " Stop: " + restart.stop() + "; start: " + restart.start() + ".";
+        if (!problems.isEmpty()) report.failed(CheckType.TOMCAT_RESTART, "Restart is not ready: " + String.join("; ", problems) + "." + commands);
+        else if (!notes.isEmpty()) report.warning(CheckType.TOMCAT_RESTART, String.join("; ", ok) + (ok.isEmpty() ? "" : "; ")
+                + String.join("; ", notes) + "." + commands);
+        else report.success(CheckType.TOMCAT_RESTART, "Ready: " + String.join("; ", ok) + "." + commands);
+    }
+
+    /** Runs a read-only restart query built by TomcatRestart (state query or sudo -l), never a stop or start command. */
+    private static String runRestartQuery(ClientSession session, String query, Duration timeout) throws IOException {
+        if (!query.startsWith("systemctl is-active ") && !query.startsWith("sudo -n -l ")) throw new IllegalArgumentException("Query not allowed");
+        return session.executeRemoteCommand(query, new ByteArrayOutputStream(), StandardCharsets.UTF_8, timeout);
     }
 
     /** Executes one of a fixed set of argument-free commands; never interpolates user input. */

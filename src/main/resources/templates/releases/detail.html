@@ -80,8 +80,8 @@
                                 <li th:each="why : ${releaseFile.reasons()}" th:text="${why}"></li>
                             </ul>
                             <div sec:authorize="hasRole('SUPER_ADMIN')">
-                                <p class="form-text mb-1" th:if="${releaseFile.state().name() == 'RUNNING'}">
-                                    The file of a version that is currently deployed or being deployed is kept, so it can always be redeployed or restored.</p>
+                                <p class="form-text mb-1" th:if="${releaseFile.state().name() == 'DEPLOYING'}">
+                                    This file is being deployed right now; it can be removed once that deployment has finished.</p>
                                 <details th:if="${releaseFile.removable()}" class="mt-1">
                                     <summary class="small text-danger">Remove the WAR file to free <span th:text="${size}"></span>…</summary>
                                     <form method="post" th:action="@{/releases/{id}/remove-file(id=${release.id})}" class="mt-2"
@@ -91,9 +91,15 @@
                                         <label class="form-label small" for="remove-reason">Reason</label>
                                         <input class="form-control form-control-sm mb-2" id="remove-reason" name="reason" required minlength="5" maxlength="300"
                                                placeholder="e.g. old version, freeing disk space">
-                                        <div class="form-check mb-2" th:if="${releaseFile.state().name() == 'ROLLBACK_POINT'}">
-                                            <input class="form-check-input" type="checkbox" id="confirm-rollback" name="confirmRollbackPoint" value="true" required>
-                                            <label class="form-check-label small" for="confirm-rollback">I understand the deployments above can then no longer be rolled back to this version.</label>
+                                        <div class="alert alert-warning small py-2 mb-2" th:if="${releaseFile.isProtected()}">
+                                            <strong th:text="${releaseFile.state().name() == 'RUNNING'} ? 'This version is in use.' : 'This version is a rollback point.'"></strong>
+                                            Only the stored copy is removed: the application keeps running on the server and the release history stays.
+                                            Until the identical WAR is uploaded again, this release cannot be deployed, and nothing can be rolled back to it
+                                            (instances deploying through Tomcat Manager also get no rollback point at their next deployment).
+                                        </div>
+                                        <div class="form-check mb-2" th:if="${releaseFile.isProtected()}">
+                                            <input class="form-check-input" type="checkbox" id="confirm-protected" name="confirm" value="true" required>
+                                            <label class="form-check-label small" for="confirm-protected">I understand, remove the stored WAR file anyway.</label>
                                         </div>
                                         <button class="btn btn-sm btn-outline-danger"><i class="bx bx-trash me-1"></i>Remove WAR file</button>
                                     </form>

@@ -38,7 +38,7 @@ public class ReleaseApiController {
 
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<ReleaseDto> upload(@RequestParam("file") MultipartFile file, @RequestParam("applicationId") long applicationId,
-                                             @RequestParam("versionLabel") String versionLabel,
+                                             @RequestParam(value = "versionLabel", required = false) String versionLabel, // empty for automatic versions
                                              @RequestParam(value = "releaseNotes", required = false) String releaseNotes,
                                              Principal principal) throws IOException, InvalidWarException {
         requireUpload(applications.findVisible(applicationId, access.current()), access.current());

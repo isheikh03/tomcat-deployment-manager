@@ -57,6 +57,43 @@
                         </div>
                     </div>
 
+                    <!-- Release versions: typed at every upload, or built automatically from a pattern -->
+                    <div class="form-section-title"><i class="bx bx-purchase-tag-alt"></i>Release versions</div>
+                    <div class="row g-3" data-version-settings>
+                        <div class="col-12">
+                            <div class="choice-row" role="radiogroup" aria-label="How release versions are set">
+                                <label class="choice"><input type="radio" class="form-check-input" th:field="*{versionMode}" value="MANUAL" data-version-mode>
+                                    <span><strong><i class="bx bx-edit-alt me-1"></i>Manual</strong><small>The version is typed at every upload</small></span></label>
+                                <label class="choice"><input type="radio" class="form-check-input" th:field="*{versionMode}" value="AUTO" data-version-mode>
+                                    <span><strong><i class="bx bx-cog me-1"></i>Automatic</strong><small>Each upload gets the next version from a pattern</small></span></label>
+                            </div>
+                        </div>
+                        <div class="col-12" data-version-pattern-group>
+                            <label class="form-label fw-semibold" for="versionPattern">Version pattern</label>
+                            <input class="form-control font-monospace" th:field="*{versionPattern}" th:errorclass="is-invalid" maxlength="60"
+                                   placeholder="e.g. 1.0.{n}" autocomplete="off" spellcheck="false" data-version-pattern>
+                            <div class="invalid-feedback" th:errors="*{versionPattern}"></div>
+                            <div class="d-flex flex-wrap gap-2 mt-2" aria-label="Ready-made patterns">
+                                <button type="button" class="btn btn-outline-secondary btn-sm font-monospace" th:each="p : ${versionPresets}"
+                                        th:attr="data-version-preset=${p.key}" th:title="${p.value}" th:text="${p.key}">1.0.{n}</button>
+                            </div>
+                            <div class="small mt-2" data-version-example></div>
+                            <div class="small mt-1" th:if="${nextVersion != null and !#strings.isEmpty(nextVersion)}">
+                                Next upload with the saved pattern: <code th:text="${nextVersion}"></code></div>
+                            <details class="small mt-2">
+                                <summary class="text-secondary">Placeholders</summary>
+                                <ul class="mb-0 mt-1 ps-3 text-secondary">
+                                    <li><code>{n}</code> the next number: one more than the highest existing version of the same shape
+                                        (with a date in the pattern it restarts every day); <code>{n:3}</code> pads it to 001</li>
+                                    <li><code>{yyyy} {yy} {MM} {dd} {HH} {mm} {ss}</code> the upload date and time</li>
+                                    <li><code>{file}</code> the version in the WAR file name, e.g. portal-<strong>2.4.1</strong>.war</li>
+                                    <li><code>{manifest}</code> the Implementation-Version in the WAR's manifest</li>
+                                    <li>Other text may use letters, digits and <code>. _ + -</code>. If a version already exists, -2, -3 … is added.</li>
+                                </ul>
+                            </details>
+                        </div>
+                    </div>
+
                     <!-- Compatibility -->
                     <div class="form-section-title"><i class="bx bx-check-shield"></i>Compatibility <span class="text-muted fw-normal fs-12 ms-1">leave empty what doesn't matter</span></div>
                     <div class="row g-3">
@@ -149,5 +186,6 @@
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 </div>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/application-form.js}"></script>
 </body>
 </html>

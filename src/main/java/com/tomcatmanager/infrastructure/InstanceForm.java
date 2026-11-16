@@ -36,6 +36,11 @@ public class InstanceForm {
     @Min(1) @Max(300) private int timeoutSeconds = 15;
     @Min(0) @Max(5) private int maxRetries = 2;
     private boolean enabled = true;
+    @NotNull private TomcatRestart.Mode restartMode = TomcatRestart.Mode.NONE;
+    @Size(max = 100) private String restartService;
+    private boolean restartUseSudo;
+    @Size(max = 255) private String catalinaHome;
+    @Min(value = 0, message = "0 or more seconds.") @Max(value = 300, message = "At most 300 seconds.") private Integer restartStopWaitSeconds;
     private List<Long> groupIds = List.of();
     private boolean managerSecretStored;
 
@@ -51,6 +56,8 @@ public class InstanceForm {
         f.managerUrl = managerConfigured ? ManagerUrl.of(i).toString() : null;
         f.managerUsername = i.getManagerUsername();
         f.timeoutSeconds = i.getTimeoutSeconds(); f.maxRetries = i.getMaxRetries(); f.enabled = i.isEnabled();
+        f.restartMode = i.getRestartMode(); f.restartService = i.getRestartService(); f.restartUseSudo = i.isRestartUseSudo();
+        f.catalinaHome = i.getCatalinaHome(); f.restartStopWaitSeconds = i.getRestartStopWaitSeconds();
         f.groupIds = i.getGroups().stream().map(ServerGroup::getId).toList();
         f.managerSecretStored = i.hasManagerSecret();
         return f;
@@ -82,6 +89,11 @@ public class InstanceForm {
     public int getTimeoutSeconds(){return timeoutSeconds;} public void setTimeoutSeconds(int v){timeoutSeconds=v;}
     public int getMaxRetries(){return maxRetries;} public void setMaxRetries(int v){maxRetries=v;}
     public boolean isEnabled(){return enabled;} public void setEnabled(boolean v){enabled=v;}
+    public TomcatRestart.Mode getRestartMode(){return restartMode;} public void setRestartMode(TomcatRestart.Mode v){restartMode=v;}
+    public String getRestartService(){return restartService;} public void setRestartService(String v){restartService=v;}
+    public boolean isRestartUseSudo(){return restartUseSudo;} public void setRestartUseSudo(boolean v){restartUseSudo=v;}
+    public String getCatalinaHome(){return catalinaHome;} public void setCatalinaHome(String v){catalinaHome=v;}
+    public Integer getRestartStopWaitSeconds(){return restartStopWaitSeconds;} public void setRestartStopWaitSeconds(Integer v){restartStopWaitSeconds=v;}
     public List<Long> getGroupIds(){return groupIds;} public void setGroupIds(List<Long> v){groupIds=v;}
     public boolean isManagerSecretStored(){return managerSecretStored;}
     void setManagerSecretStored(boolean v){managerSecretStored=v;}

@@ -31,9 +31,11 @@ public class ApplicationController {
     private final ReleaseRepository releases;
     private final Access access;
     private final TeamRepository teams;
+    private final com.tomcatmanager.release.ReleaseService releaseService;
 
-    public ApplicationController(ApplicationService service, ReleaseRepository releases, Access access, TeamRepository teams) {
-        this.service = service; this.releases = releases; this.access = access; this.teams = teams;
+    public ApplicationController(ApplicationService service, ReleaseRepository releases, Access access, TeamRepository teams,
+                                 com.tomcatmanager.release.ReleaseService releaseService) {
+        this.service = service; this.releases = releases; this.access = access; this.teams = teams; this.releaseService = releaseService;
     }
 
     /** Per-application release count and most recent upload. */
@@ -69,6 +71,7 @@ public class ApplicationController {
         model.addAttribute("app", app);
         model.addAttribute("canManage", s.canManageApplication(app.getTeamId()));
         model.addAttribute("appTeam", app.getTeamId() == null ? null : teams.findById(app.getTeamId()).orElse(null));
+        model.addAttribute("nextVersion", releaseService.previewVersion(app));
         model.addAttribute("releases", releases.findByApplicationIdOrderByUploadedAtDesc(id));
         return "applications/detail";
     }
@@ -125,6 +128,9 @@ public class ApplicationController {
         model.addAttribute("form", form);
         model.addAttribute("tomcatLines", ApplicationForm.TOMCAT_LINES);
         model.addAttribute("teams", manageableTeams(access.current()));
+        model.addAttribute("versionPresets", com.tomcatmanager.release.VersionPattern.PRESETS);
+        // For an existing application with automatic versions: what its next upload will be called.
+        if (form.getId() != null) model.addAttribute("nextVersion", releaseService.previewVersion(service.find(form.getId())));
         model.addAttribute("appTeam", form.getTeamId() == null ? null : teams.findById(form.getTeamId()).orElse(null));
         return "applications/form";
     }

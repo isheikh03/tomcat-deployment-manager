@@ -41,6 +41,10 @@ public interface ReleaseRepository extends JpaRepository<Release, Long> {
 
     Optional<Release> findByApplicationIdAndArtifactId(Long applicationId, Long artifactId);
     boolean existsByApplicationIdAndVersionLabelIgnoreCase(Long applicationId, String versionLabel);
+
+    /** Every version label of an application (for automatic versions). */
+    @Query("select r.versionLabel from Release r where r.application.id = :applicationId")
+    List<String> versionLabels(Long applicationId);
     long countByApplicationId(Long applicationId);
     long countByArtifactId(Long artifactId);
     long countByArchivedFalse();

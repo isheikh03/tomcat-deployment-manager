@@ -63,6 +63,10 @@ public class ApplicationService {
             applications.findByNameIgnoreCase(f.getName().trim()).filter(a -> !a.getId().equals(f.getId()))
                     .ifPresent(a -> errors.rejectValue("name", "duplicate", "An application with this name already exists."));
         }
+        if (f.getVersionMode() == ManagedApplication.VersionMode.AUTO) {
+            String problem = com.tomcatmanager.release.VersionPattern.problem(f.getVersionPattern());
+            if (problem != null) errors.rejectValue("versionPattern", "invalid", problem);
+        }
         if (f.getMinJavaVersion() != null && f.getMaxJavaVersion() != null && f.getMaxJavaVersion() < f.getMinJavaVersion())
             errors.rejectValue("maxJavaVersion", "range", "The maximum Java version must not be lower than the minimum.");
         for (String line : f.getSupportedTomcatVersions())
@@ -78,6 +82,11 @@ public class ApplicationService {
     }
 
     @Transactional
+    /** "manual" or "automatic (1.0.{n})", for the audit log. */
+    static String versioning(ManagedApplication a) {
+        return a.isAutoVersion() ? "automatic (" + a.getVersionPattern() + ")" : "manual";
+    }
+
     public ManagedApplication save(ApplicationForm f, String actor) {
         ManagedApplication a;
         if (f.getId() == null) {
@@ -99,7 +108,14 @@ public class ApplicationService {
         a.setSupportedTomcatVersions(ApplicationForm.TOMCAT_LINES.stream().filter(f.getSupportedTomcatVersions()::contains)
                 .reduce((x, y) -> x + "," + y).orElse(null));
         a.setOtherRequirements(blankToNull(f.getOtherRequirements()));
+        String versioningBefore = f.getId() == null ? null : versioning(a);
+        a.setVersionMode(f.getVersionMode());
+        // The pattern is kept when switching to manual, so it is there again when switching back.
+        if (f.getVersionPattern() != null && !f.getVersionPattern().isBlank()) a.setVersionPattern(f.getVersionPattern());
         ManagedApplication saved = applications.save(a);
+        if (versioningBefore != null && !versioningBefore.equals(versioning(saved)))
+            audit.record(actor, "VERSIONING_CHANGED", "APPLICATION", saved.getId(), com.tomcatmanager.audit.AuditEvent.Outcome.SUCCESS,
+                    "Versioning of " + saved.getName() + " changed from " + versioningBefore + " to " + versioning(saved) + ".");
         log.info("Application {} '{}' {} by {}", saved.getId(), saved.getName(), f.getId() == null ? "created" : "updated", actor);
         String requirementsAfter = requirements(saved);
         audit.record(actor, f.getId() == null ? "APPLICATION_CREATED" : "APPLICATION_UPDATED", "APPLICATION", saved.getId(),
