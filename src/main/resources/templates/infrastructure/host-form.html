@@ -37,7 +37,7 @@
                     <div class="form-section-title mt-0"><i class="bx bx-server"></i>Server</div>
                     <div class="row g-3">
                         <!-- Team: chosen when the host is created, fixed afterwards (its instances belong to the same team). -->
-                        <div class="col-12" th:if="${host.id == null}">
+                        <div class="col-6" th:if="${host.id == null}">
                             <label class="form-label fw-semibold" for="teamId">Team</label>
                             <select class="form-select" th:field="*{teamId}" th:errorclass="is-invalid" required>
                                 <option value="" th:if="${#lists.size(teams) != 1}">Choose a team…</option>
@@ -46,24 +46,24 @@
                             <div class="invalid-feedback" th:errors="*{teamId}"></div>
                             <div class="form-text">The host and its Tomcat instances belong to this team. It cannot be changed later.</div>
                         </div>
-                        <div class="col-12" th:if="${host.id != null and hostTeam != null}">
+                        <div class="col-6" th:if="${host.id != null and hostTeam != null}">
                             <span class="form-label fw-semibold d-block">Team</span>
                             <span class="badge text-bg-light border" th:text="${hostTeam.name}">Team</span>
                         </div>
-                        <div class="col-12">
+                        <div class="col-6">
                             <label class="form-label fw-semibold" for="name">Server name</label>
                             <input class="form-control" th:field="*{name}" th:errorclass="is-invalid" required maxlength="120"
                                    placeholder="e.g. Production App Server 01" autocomplete="off" autofocus>
                             <div class="invalid-feedback" th:errors="*{name}"></div>
                             <div class="form-text">A friendly name for lists and deployments.</div>
                         </div>
-                        <div class="col-sm-8">
+                        <div class="col-6">
                             <label class="form-label fw-semibold" for="hostname">Host name / IP address</label>
                             <input class="form-control" th:field="*{hostname}" th:errorclass="is-invalid" required maxlength="255"
                                    placeholder="tomcat01.example.com or 10.0.0.15" autocomplete="off" spellcheck="false">
                             <div class="invalid-feedback" th:errors="*{hostname}"></div>
                         </div>
-                        <div class="col-sm-4">
+                        <div class="col-6">
                             <label class="form-label fw-semibold" for="sshPort">SSH port</label>
                             <input type="number" class="form-control" th:field="*{sshPort}" th:errorclass="is-invalid" min="1" max="65535" required>
                             <div class="invalid-feedback" th:errors="*{sshPort}"></div>

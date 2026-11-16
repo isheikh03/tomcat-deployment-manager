@@ -31,7 +31,7 @@ public class TomcatInstance {
     @Size(max = 200) @Column(name = "health_expected_text", length = 200) private String healthExpectedText;
     /** Include this instance in periodic application health monitoring. */
     @Column(name = "monitoring_enabled", nullable = false) private boolean monitoringEnabled = true;
-    /** WAR filename releases are renamed to on this instance, e.g. appA.war (context /appA). */
+    /** WAR filename releases are renamed to on this instance, e.g. app.war (context /app). */
     @Size(max = 255) @Column(name = "deployment_filename", length = 255) private String deploymentFilename;
     /** Known runtime, e.g. 10.1.30 and 21; used for release compatibility checks. Null when unknown. */
     @Size(max = 40) @Column(name = "tomcat_version", length = 40) private String tomcatVersion;
@@ -109,7 +109,7 @@ public class TomcatInstance {
     }
     public boolean hasManagerSecret() { return managerSecretEncrypted != null; }
 
-    /** Health URL for a deployed context: replaces {context} with e.g. "/appA" (or "" for ROOT). */
+    /** Health URL for a deployed context: replaces {context} with e.g. "/app" (or "" for ROOT). */
     public String healthUrlFor(String contextPath) {
         if (healthUrl == null) return null;
         return healthUrl.replace("{context}", "/".equals(contextPath) ? "" : contextPath);

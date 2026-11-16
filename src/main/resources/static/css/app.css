@@ -172,7 +172,7 @@ tr.row-link { cursor: pointer; }
 @media (max-width: 760px) {
   .method-cards, .method-explainer { grid-template-columns: 1fr; }
 }
-.deploy-preview { border: 1px dashed var(--line); border-radius: 6px; padding: 8px 12px; font-size: 13px; background: var(--soft); min-height: 38px; }
+.deploy-preview { border: 1px dashed var(--line); border-radius: 6px; padding: 8px 12px; font-size: 11px; background: var(--soft); min-height: 38px; }
 .deploy-preview code { word-break: break-all; }
 
 /* ---------- Application registry ---------- */

@@ -131,7 +131,7 @@
                             <div class="form-text">Relative to CATALINA_BASE, or an absolute path.</div></div>
                         <div class="col-md-7"><label class="form-label fw-semibold" for="deploymentFilename">Deployment filename</label>
                             <input class="form-control font-monospace" th:field="*{deploymentFilename}" th:errorclass="is-invalid" required maxlength="200"
-                                   placeholder="appA.war" autocomplete="off" spellcheck="false" data-deploy-filename>
+                                   placeholder="app.war" autocomplete="off" spellcheck="false" data-deploy-filename>
                             <div class="invalid-feedback" th:errors="*{deploymentFilename}"></div>
                             <div class="form-text">Each release is renamed to this when deployed here; the stored release is unchanged.</div></div>
                         <div class="col-md-5"><span class="form-label fw-semibold d-block">Deployed as</span>
@@ -189,7 +189,7 @@
                         <div class="col-md-8"><label class="form-label fw-semibold" for="healthUrl">Application health URL <span class="text-muted fw-normal small" data-health-optional hidden>(optional)</span></label>
                             <input type="url" class="form-control" th:field="*{healthUrl}" th:errorclass="is-invalid" placeholder="http://tomcat01:8080{context}/health" data-health-url>
                             <div class="invalid-feedback" th:errors="*{healthUrl}"></div>
-                            <div class="form-text"><code>{context}</code> becomes the deployed context path, e.g. <code>/appA</code>.</div></div>
+                            <div class="form-text"><code>{context}</code> becomes the deployed context path, e.g. <code>/app</code>.</div></div>
                         <div class="col-md-4"><label class="form-label fw-semibold" for="httpPort">HTTP port <span class="text-muted fw-normal small">(optional)</span></label>
                             <input type="number" class="form-control" th:field="*{httpPort}" th:errorclass="is-invalid" min="1" max="65535" placeholder="8080">
                             <div class="invalid-feedback" th:errors="*{httpPort}"></div>
