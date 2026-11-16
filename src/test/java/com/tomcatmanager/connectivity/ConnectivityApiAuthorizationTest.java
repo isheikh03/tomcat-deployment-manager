@@ -30,11 +30,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Backend authorization and CSRF rules for the connectivity API, independent of the UI. */
 @WebMvcTest(ConnectivityApiController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, com.tomcatmanager.support.AllAccess.class})
 class ConnectivityApiAuthorizationTest {
     @Autowired MockMvc mvc;
     @MockitoBean ConnectionTestService service;
     @MockitoBean com.tomcatmanager.audit.AuditService audit;
+    @MockitoBean com.tomcatmanager.infrastructure.ManagedHostRepository hosts;
+    @MockitoBean com.tomcatmanager.infrastructure.TomcatInstanceRepository instances;
+
+    /** Every host id exists (the controller looks the host up before testing it). */
+    @org.junit.jupiter.api.BeforeEach void hostsExist() {
+        when(hosts.findById(org.mockito.ArgumentMatchers.anyLong())).thenAnswer(call -> {
+            var h = new com.tomcatmanager.infrastructure.ManagedHost();
+            h.setId(call.getArgument(0));
+            return java.util.Optional.of(h);
+        });
+    }
 
     private static ConnectionTestResult sampleResult() {
         ProbeReport report = new ProbeReport();

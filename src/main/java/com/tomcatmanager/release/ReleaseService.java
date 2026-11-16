@@ -212,9 +212,19 @@ public class ReleaseService {
         return releases.findById(id).orElseThrow(() -> new NoSuchElementException("Release " + id + " not found."));
     }
 
-    public Page<Release> search(Long applicationId, String query, boolean includeArchived, int page, int size) {
+    /** The release, if the user may see its application (otherwise: not found). */
+    public Release findVisible(long id, com.tomcatmanager.access.AccessScope s) {
+        Release r = find(id);
+        if (!s.canViewApplication(r.getApplication().getTeamId())) throw new NoSuchElementException("Release " + id + " not found.");
+        return r;
+    }
+
+    /** Releases of the applications the user may see. */
+    public Page<Release> search(Long applicationId, String query, boolean includeArchived, int page, int size, com.tomcatmanager.access.AccessScope s) {
+        java.util.Set<Long> teams = s.visibleTeamIds();
         String q = query == null || query.isBlank() ? "" : "%" + query.trim().toLowerCase() + "%";
-        return releases.search(applicationId == null ? 0 : applicationId, includeArchived, q,
+        return releases.search(applicationId == null ? 0 : applicationId, includeArchived, q, teams == null,
+                teams == null || teams.isEmpty() ? java.util.List.of(-1L) : teams,
                 PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100), Sort.by(Sort.Direction.DESC, "uploadedAt")));
     }
 

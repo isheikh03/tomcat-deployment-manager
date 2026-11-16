@@ -29,18 +29,26 @@ public class HealthController {
     private final DeploymentRunRepository runs;
 
     public HealthController(TomcatInstanceRepository instances, InstanceHealthStatusRepository statuses, HealthMonitor monitor,
-                            HealthOverview overview, DeploymentRunRepository runs) {
+                            HealthOverview overview, DeploymentRunRepository runs, com.tomcatmanager.access.Access access,
+                            com.tomcatmanager.deployment.DeploymentService deployments) {
         this.instances = instances; this.statuses = statuses; this.monitor = monitor; this.overview = overview; this.runs = runs;
+        this.access = access; this.deployments = deployments;
     }
+
+    private final com.tomcatmanager.access.Access access;
+    private final com.tomcatmanager.deployment.DeploymentService deployments;
 
     @GetMapping("/health")
     public String index(Model model) {
+        com.tomcatmanager.access.AccessScope scope = access.current();
         model.addAttribute("pageTitle", "Health monitoring");
-        model.addAttribute("overview", overview.overview());
+        model.addAttribute("overview", overview.overview(scope::canViewInstance));
         model.addAttribute("recoveries", statuses.findTop10ByLastRecoveredAtNotNullOrderByLastRecoveredAtDesc().stream()
+                .filter(s -> scope.canViewInstance(s.getInstanceId()))
                 .map(s -> instances.findById(s.getInstanceId()).map(i -> Map.of("instance", i, "status", (Object) s)).orElse(null))
                 .filter(Objects::nonNull).toList());
-        model.addAttribute("rollbacks", runs.findTop5ByKindOrderByRequestedAtDesc(DeploymentRun.Kind.ROLLBACK));
+        model.addAttribute("rollbacks", runs.findTop5ByKindOrderByRequestedAtDesc(DeploymentRun.Kind.ROLLBACK).stream()
+                .filter(r -> deployments.visible(r, scope)).toList());
         return "health/index";
     }
 
@@ -55,8 +63,11 @@ public class HealthController {
         return "health/instance";
     }
 
+    /** The instance, if the user can see it (otherwise: not found). */
     private TomcatInstance find(long id) {
-        return instances.findById(id).orElseThrow(() -> new NoSuchElementException("Tomcat instance " + id + " not found."));
+        TomcatInstance i = instances.findById(id).orElseThrow(() -> new NoSuchElementException("Tomcat instance " + id + " not found."));
+        if (!access.current().canViewInstance(i.getId())) throw new NoSuchElementException("Tomcat instance " + id + " not found.");
+        return i;
     }
 
     private static String describe(TomcatInstance i) {
@@ -68,7 +79,7 @@ public class HealthController {
 
     @GetMapping("/api/health")
     @ResponseBody
-    public HealthOverview.Overview overviewApi() { return overview.overview(); }
+    public HealthOverview.Overview overviewApi() { return overview.overview(access.current()::canViewInstance); }
 
     public record ResultDto(Long id, Instant checkedAt, String trigger, boolean healthy, Integer statusCode, long elapsedMs, String detail,
                             String url, String checkedBy) {
@@ -90,6 +101,9 @@ public class HealthController {
     @PostMapping("/api/health/instances/{id}/check")
     @ResponseBody
     public CheckDto check(@PathVariable long id, Principal principal) {
+        find(id);
+        if (!access.current().canDeployTo(id))
+            throw new com.tomcatmanager.access.NotPermittedException("You need deploy access to this instance to run a health check.");
         HealthCheckResult result = monitor.checkNow(id, principal.getName());
         return new CheckDto(ResultDto.from(result), overview.row(find(id)));
     }

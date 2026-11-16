@@ -42,7 +42,9 @@ public class ServerGroupService {
     }
 
     public List<TomcatInstance> nonMembers(long groupId) {
-        return instances.findAllByOrderByNameAsc().stream().filter(i -> i.getGroups().stream().noneMatch(g -> g.getId().equals(groupId))).toList();
+        Long team = find(groupId).getTeamId();
+        return instances.findAllByOrderByNameAsc().stream().filter(i -> java.util.Objects.equals(i.getHost().getTeamId(), team))
+                .filter(i -> i.getGroups().stream().noneMatch(g -> g.getId().equals(groupId))).toList();
     }
 
     /** Adds an instance to a group; refuses a duplicate membership. */
@@ -52,6 +54,8 @@ public class ServerGroupService {
         TomcatInstance instance = instances.findById(instanceId).orElseThrow(() -> new NoSuchElementException("Tomcat instance " + instanceId + " not found."));
         if (instance.getGroups().stream().anyMatch(g -> g.getId().equals(groupId)))
             throw new IllegalStateException(instance.getName() + " is already a member of " + group.getName() + ".");
+        if (!java.util.Objects.equals(instance.getHost().getTeamId(), group.getTeamId()))
+            throw new IllegalStateException(instance.getName() + " belongs to another team than " + group.getName() + "; a group contains only its own team's instances.");
         instance.getGroups().add(group);
         return instances.save(instance);
     }

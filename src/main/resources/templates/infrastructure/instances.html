@@ -33,6 +33,7 @@
             </div>
             <button class="btn btn-primary" type="submit">Search</button>
             <div class="list-toolbar-filters">
+                <select th:replace="~{fragments/access :: teamFilter}"></select>
                 <select class="form-select" name="environment" aria-label="Environment" data-autosubmit>
                     <option value="">--Environments--</option>
                     <option th:each="e : ${environments}" th:value="${e.name()}" th:text="${e.label()}" th:selected="${e.name() == environment}"></option>
@@ -90,7 +91,7 @@
 
         <div class="table-responsive" th:if="${view.totalElements > 0}">
             <table class="table table-hover align-middle mb-0 list-table">
-                <thead><tr><th>Instance</th><th>Host</th><th>Deployment method</th><th>Groups</th><th>Connectivity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <thead><tr><th>Instance</th><th>Host</th><th th:if="${showTeams}">Team</th><th>Deployment method</th><th>Groups</th><th>Connectivity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
                 <tbody>
                 <tr th:each="i : ${view.content}">
                     <td class="list-primary">
@@ -99,6 +100,7 @@
                         <div class="small text-secondary text-truncate"><span th:text="${i.remoteDeploymentDirectory}"></span><th:block th:if="${i.deploymentFilename != null}">/<strong th:text="${i.deploymentFilename}"></strong> · <span th:text="${i.deploymentContextPath}"></span></th:block></div>
                     </td>
                     <td><a th:href="@{/infrastructure/hosts/{id}(id=${i.host.id})}" th:text="${i.host.name}">host</a><div class="small text-secondary" th:text="${i.host.hostname}"></div></td>
+                    <td th:if="${showTeams}"><span th:replace="~{fragments/access :: teamBadge(${teamNames.get(i.host.teamId)})}"></span></td>
                     <td class="text-nowrap" th:text="${i.deploymentMethod.name() == 'SSH_SFTP' ? 'SSH / SFTP' : 'Tomcat Manager'}"></td>
                     <td><a th:each="g : ${i.groups}" class="badge text-bg-light border me-1" th:href="@{/infrastructure/instances(group=${g.id})}" th:text="${g.name}" th:title="'Show the members of ' + ${g.name}"></a><span th:if="${#sets.isEmpty(i.groups)}" class="text-secondary">—</span></td>
                     <td><span th:replace="~{fragments/layout :: status(${instanceStatuses.getOrDefault(i.id, neverTested)})}"></span></td>

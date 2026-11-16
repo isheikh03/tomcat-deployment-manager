@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Team filter of a list toolbar; only when the user sees more than one team. Needs teamOptions, showTeams and team (selected id or ''). -->
+<select th:fragment="teamFilter" th:if="${showTeams}" class="form-select" name="team" aria-label="Team" data-autosubmit>
+    <option value="" th:selected="${team == ''}">All teams</option>
+    <option th:each="t : ${teamOptions}" th:value="${t.id}" th:text="${t.name}" th:selected="${t.id.toString() == team}"></option>
+</select>
+
+<!-- A team name as a small badge. -->
+<span th:fragment="teamBadge(name)" class="badge bg-info-transparent text-nowrap" th:if="${name != null}"><i class="bx bx-sitemap me-1"></i><span th:text="${name}"></span></span>
+
+<!-- "Who has access" card. holders: AccessAdminService.Holder list; note: what the list covers. -->
+<div th:fragment="holders(holders, note)" class="card custom-card mb-3" id="who-has-access">
+    <div class="card-header justify-content-between">
+        <div class="card-title">Who has access
+            <span class="badge rounded-pill bg-primary-transparent ms-1" th:text="${#lists.size(holders)}">0</span></div>
+        <a class="btn btn-outline-primary btn-sm" th:href="@{/admin/users}"><i class="bx bx-user-plus me-1"></i>Manage users</a>
+    </div>
+    <div class="card-body p-0">
+        <p class="small text-muted px-3 pt-3 mb-2" th:text="${note} + ' Super users have access to everything and are not listed.'"></p>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 card-table">
+                <thead><tr><th>User</th><th>Role</th><th>Through</th><th>Level</th><th>Expires</th></tr></thead>
+                <tbody>
+                <tr th:each="h : ${holders}">
+                    <td><a class="fw-semibold" th:href="@{/admin/users/{id}/edit(id=${h.userId()})}" th:text="${h.username()}"></a>
+                        <div class="small text-muted" th:if="${h.label() != h.username()}" th:text="${h.label()}"></div></td>
+                    <td><span class="badge" th:classappend="${h.role().name() == 'ADMIN'} ? ' text-bg-dark' : (${h.role().name() == 'VIEWER'} ? ' text-bg-light border' : ' text-bg-primary')"
+                              th:text="${h.role().label()}"></span></td>
+                    <td class="small" th:text="${h.via()}"></td>
+                    <td><span class="badge" th:classappend="${h.level().name() == 'DEPLOY'} ? ' bg-success-transparent' : ' bg-secondary-transparent'" th:text="${h.level().label()}"></span></td>
+                    <td class="small text-nowrap" th:text="${h.expiresAt() == null} ? 'Never' : ${@time.format(h.expiresAt())}"></td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(holders)}"><td colspan="5" class="text-center text-muted py-4">Nobody has access yet, apart from super users.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

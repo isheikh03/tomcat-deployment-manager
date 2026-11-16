@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="dark" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('teams')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/admin/teams}">Teams</a></li>
+        <li class="breadcrumb-item active" th:text="${team.name}">team</li>
+    </ol></nav>
+    <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div class="d-flex align-items-center gap-3 min-w-0">
+            <span class="stat-icon bg-primary-transparent host-avatar"><i class="bx bx-group"></i></span>
+            <div class="min-w-0">
+                <div class="eyebrow mb-1">TEAM</div>
+                <h1 class="h3 mb-1 d-flex flex-wrap align-items-center gap-2"><span th:text="${team.name}">team</span>
+                    <span th:if="${team.defaultTeam}" class="badge text-bg-light border fs-12">Default</span></h1>
+                <p class="text-muted mb-0 text-prewrap" th:text="${team.description ?: 'No description.'}"></p>
+            </div>
+        </div>
+        <div class="d-flex gap-2" th:if="${superUser}">
+            <a class="btn btn-outline-secondary" th:href="@{/admin/teams/{id}/edit(id=${team.id})}"><i class="bx bx-edit me-1"></i>Edit team</a>
+            <form th:unless="${team.defaultTeam}" method="post" th:action="@{/admin/teams/{id}/delete(id=${team.id})}"
+                  th:attr="data-confirm='Delete team ' + ${team.name} + '? Its administrator assignments and instance access are removed too.'">
+                <button class="btn btn-outline-danger" type="submit" th:disabled="${row != null and row.hosts() + row.applications() + row.groups() > 0}"
+                        th:title="${row != null and row.hosts() + row.applications() + row.groups() > 0} ? 'Delete its hosts, applications and server groups first' : 'Delete team'">
+                    <i class="bx bx-trash me-1"></i>Delete</button>
+            </form>
+        </div>
+    </div>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+
+    <div class="row g-3 mb-3" th:if="${row != null}">
+        <div class="col-6 col-lg-3"><div class="metric-card h-100"><div class="metric-label">Linux hosts</div><div class="metric-value" th:text="${row.hosts()}">0</div></div></div>
+        <div class="col-6 col-lg-3"><div class="metric-card h-100"><div class="metric-label">Tomcat instances</div><div class="metric-value" th:text="${row.instances()}">0</div></div></div>
+        <div class="col-6 col-lg-3"><div class="metric-card h-100"><div class="metric-label">Applications</div><div class="metric-value" th:text="${row.applications()}">0</div></div></div>
+        <div class="col-6 col-lg-3"><div class="metric-card h-100"><div class="metric-label">Server groups</div><div class="metric-value" th:text="${row.groups()}">0</div></div></div>
+    </div>
+
+    <div th:replace="~{fragments/access :: holders(${holders}, 'Administrators of this team, and operators and viewers with access to any of its instances.')}"></div>
+
+    <div class="card custom-card mb-3">
+        <div class="card-header justify-content-between">
+            <div class="card-title">Linux hosts <span class="badge rounded-pill bg-primary-transparent ms-1" th:text="${#lists.size(hosts)}">0</span></div>
+            <a class="btn btn-outline-primary btn-sm" th:href="@{/infrastructure/hosts/new}"><i class="bx bx-plus me-1"></i>Add host</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 card-table">
+                    <thead><tr><th>Host</th><th>Address</th><th>Status</th></tr></thead>
+                    <tbody>
+                    <tr th:each="h : ${hosts}">
+                        <td><a class="fw-semibold" th:href="@{/infrastructure/hosts/{id}(id=${h.id})}" th:text="${h.name}"></a></td>
+                        <td class="font-monospace small" th:text="${h.hostname} + ':' + ${h.sshPort}"></td>
+                        <td><span class="badge" th:classappend="${h.enabled ? ' text-bg-success' : ' text-bg-secondary'}" th:text="${h.enabled ? 'Enabled' : 'Disabled'}"></span></td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(hosts)}"><td colspan="3" class="text-center text-muted py-4">No Linux hosts in this team yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

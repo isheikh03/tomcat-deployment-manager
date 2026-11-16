@@ -17,16 +17,18 @@ public interface ReleaseRepository extends JpaRepository<Release, Long> {
     @Query(value = """
             select r from Release r
             where (:appId = 0 or r.application.id = :appId)
+              and (:allTeams = true or r.application.teamId in :teamIds)
               and (:includeArchived = true or r.archived = false)
               and (:q = '' or lower(r.versionLabel) like :q or lower(r.originalFilename) like :q
                    or lower(r.application.name) like :q or r.artifact.sha256 like :q or lower(coalesce(r.releaseNotes, '')) like :q)""",
            countQuery = """
             select count(r) from Release r
             where (:appId = 0 or r.application.id = :appId)
+              and (:allTeams = true or r.application.teamId in :teamIds)
               and (:includeArchived = true or r.archived = false)
               and (:q = '' or lower(r.versionLabel) like :q or lower(r.originalFilename) like :q
                    or lower(r.application.name) like :q or r.artifact.sha256 like :q or lower(coalesce(r.releaseNotes, '')) like :q)""")
-    Page<Release> search(long appId, boolean includeArchived, String q, Pageable pageable);
+    Page<Release> search(long appId, boolean includeArchived, String q, boolean allTeams, java.util.Collection<Long> teamIds, Pageable pageable);
 
     @EntityGraph(attributePaths = {"application", "artifact"})
     List<Release> findTop5ByOrderByUploadedAtDesc();
@@ -50,4 +52,8 @@ public interface ReleaseRepository extends JpaRepository<Release, Long> {
     /** Release count and latest upload per application, as [applicationId, count, latestUploadedAt]. */
     @Query("select r.application.id, count(r), max(r.uploadedAt) from Release r group by r.application.id")
     List<Object[]> statisticsByApplication();
+
+    /** Ids of the releases of the given teams' applications (for the audit log of an administrator). */
+    @Query("select r.id from Release r where r.application.teamId in :teams")
+    List<Long> idsOfTeams(java.util.Collection<Long> teams);
 }

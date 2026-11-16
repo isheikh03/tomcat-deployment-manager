@@ -190,7 +190,38 @@ public class DeploymentService {
 
     public DeploymentRun find(long id) { return recorder.run(id); }
 
-    public Page<DeploymentRun> search(Long applicationId, Environment environment, DeploymentState state, int page, int size) {
-        return runs.search(applicationId == null ? 0 : applicationId, environment, state, PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100)));
+    /**
+     * A run is visible to administrators of its application's team and to users who can see one of its target instances.
+     * (Super users see every run.)
+     */
+    public boolean visible(DeploymentRun run, com.tomcatmanager.access.AccessScope s) {
+        if (s.isEverything() || s.canManageTeam(run.getApplication().getTeamId())) return true;
+        return targets.findByRunIdOrderBySequenceAsc(run.getId()).stream().anyMatch(t -> t.getInstanceId() != null && s.canViewInstance(t.getInstanceId()));
+    }
+
+    /** The run, if visible to the user (otherwise: not found). */
+    public DeploymentRun findVisible(long id, com.tomcatmanager.access.AccessScope s) {
+        DeploymentRun run = find(id);
+        if (!visible(run, s)) throw new java.util.NoSuchElementException("Deployment " + id + " not found.");
+        return run;
+    }
+
+    /** Cancelling a run needs deploy access to each of its target instances (or administering its team). */
+    public void requireCanOperate(DeploymentRun run, com.tomcatmanager.access.AccessScope s) {
+        if (s.isEverything() || s.canManageTeam(run.getApplication().getTeamId())) return;
+        boolean all = targets.findByRunIdOrderBySequenceAsc(run.getId()).stream()
+                .allMatch(t -> t.getInstanceId() != null && s.canDeployTo(t.getInstanceId()));
+        if (!all) throw new com.tomcatmanager.access.NotPermittedException("You need deploy access to every target of this deployment.");
+    }
+
+    /** History of the runs the user can see. */
+    public Page<DeploymentRun> search(Long applicationId, Environment environment, DeploymentState state, int page, int size,
+                                      com.tomcatmanager.access.AccessScope s) {
+        java.util.Set<Long> instanceIds = s.visibleInstanceIds();
+        java.util.Set<Long> managed = s.managedTeams();
+        return runs.search(applicationId == null ? 0 : applicationId, environment, state, s.isEverything(),
+                managed.isEmpty() ? java.util.List.of(-1L) : managed,
+                instanceIds == null || instanceIds.isEmpty() ? java.util.List.of(-1L) : instanceIds,
+                PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100)));
     }
 }

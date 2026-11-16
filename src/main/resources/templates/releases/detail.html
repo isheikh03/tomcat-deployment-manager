@@ -26,12 +26,12 @@
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <a sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-outline-primary" th:href="@{/releases/upload(app=${release.application.id})}"><i class="bx bx-upload me-1"></i>Upload newer version</a>
-            <form sec:authorize="hasRole('ADMIN')" method="post" th:action="@{/releases/{id}/archive(id=${release.id})}" th:unless="${release.archived}"
+            <form th:if="${canManage}" method="post" th:action="@{/releases/{id}/archive(id=${release.id})}" th:unless="${release.archived}"
                   data-confirm="Archive this release? It will be hidden from the library and cannot be chosen for new deployments.">
                 <button class="btn btn-outline-secondary">Archive</button></form>
-            <form sec:authorize="hasRole('ADMIN')" method="post" th:action="@{/releases/{id}/restore(id=${release.id})}" th:if="${release.archived}">
+            <form th:if="${canManage and release.archived}" method="post" th:action="@{/releases/{id}/restore(id=${release.id})}">
                 <button class="btn btn-outline-secondary">Restore</button></form>
-            <form sec:authorize="hasRole('ADMIN')" method="post" th:action="@{/releases/{id}/delete(id=${release.id})}"
+            <form th:if="${canManage}" method="post" th:action="@{/releases/{id}/delete(id=${release.id})}"
                   data-confirm="Permanently delete this release? The stored file is removed when no other release uses it.">
                 <button class="btn btn-outline-danger">Delete</button></form>
         </div>
@@ -79,7 +79,7 @@
                             <ul class="small text-secondary mb-1 ps-3 mt-1" th:unless="${#lists.isEmpty(releaseFile.reasons())}">
                                 <li th:each="why : ${releaseFile.reasons()}" th:text="${why}"></li>
                             </ul>
-                            <div sec:authorize="hasRole('ADMIN')">
+                            <div sec:authorize="hasRole('SUPER_ADMIN')">
                                 <p class="form-text mb-1" th:if="${releaseFile.state().name() == 'RUNNING'}">
                                     The file of a version that is currently deployed or being deployed is kept, so it can always be redeployed or restored.</p>
                                 <details th:if="${releaseFile.removable()}" class="mt-1">
@@ -113,13 +113,13 @@
             <section class="panel mb-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h2 class="h6 mb-0">Release notes</h2>
-                    <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" type="button" class="btn btn-sm btn-link" data-toggle-edit>Edit details</button>
+                    <button th:if="${canEditDetails}" type="button" class="btn btn-sm btn-link" data-toggle-edit>Edit details</button>
                 </div>
                 <div data-view>
                     <div class="release-notes" th:if="${release.hasReleaseNotes()}" th:text="${release.releaseNotes}"></div>
                     <div class="alert alert-warning small mb-0" th:unless="${release.hasReleaseNotes()}">No release notes yet. They are required before this release can be deployed to Production.</div>
                 </div>
-                <form sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" method="post" th:action="@{/releases/{id}/metadata(id=${release.id})}" data-edit hidden>
+                <form th:if="${canEditDetails}" method="post" th:action="@{/releases/{id}/metadata(id=${release.id})}" data-edit hidden>
                     <input type="hidden" name="version" th:value="${release.version}">
                     <div class="mb-3"><label class="form-label" for="versionLabel">Version</label>
                         <input class="form-control" id="versionLabel" name="versionLabel" th:value="${release.versionLabel}" required maxlength="100"></div>

@@ -37,17 +37,21 @@ public class DeploymentController {
 
     public DeploymentController(DeploymentService service, DeploymentTargetRepository targets, ApplicationRepository applications,
                                 ReleaseRepository releases, TomcatInstanceRepository instances, ServerGroupRepository groups,
-                                ConnectionTestService connections, DeploymentProperties properties) {
+                                ConnectionTestService connections, DeploymentProperties properties, com.tomcatmanager.access.Access access) {
         this.service = service; this.targets = targets; this.applications = applications; this.releases = releases;
         this.instances = instances; this.groups = groups; this.connections = connections; this.properties = properties;
+        this.access = access;
     }
+
+    private final com.tomcatmanager.access.Access access;
 
     @GetMapping("/deployments")
     public String history(@RequestParam(required = false) Long app, @RequestParam(required = false) Environment environment,
                           @RequestParam(required = false) DeploymentState state, @RequestParam(defaultValue = "0") int page, Model model) {
         model.addAttribute("pageTitle", "Deployments");
-        model.addAttribute("runs", service.search(app, environment, state, page, 20));
-        model.addAttribute("applications", applications.findAllByOrderByNameAsc());
+        com.tomcatmanager.access.AccessScope s = access.current();
+        model.addAttribute("runs", service.search(app, environment, state, page, 20, s));
+        model.addAttribute("applications", applications.findAllByOrderByNameAsc().stream().filter(a -> s.canViewApplication(a.getTeamId())).toList());
         model.addAttribute("environments", Environment.values());
         model.addAttribute("states", DeploymentState.values());
         model.addAttribute("app", app);
@@ -63,14 +67,15 @@ public class DeploymentController {
         model.addAttribute("requestId", UUID.randomUUID());
         model.addAttribute("preselectedRelease", release);
         model.addAttribute("maxParallel", properties.maxParallelTargets());
-        model.addAttribute("hasApplications", applications.count() > 0);
-        model.addAttribute("hasInstances", instances.count() > 0);
+        com.tomcatmanager.access.AccessScope s = access.current();
+        model.addAttribute("hasApplications", applications.findAllByOrderByNameAsc().stream().anyMatch(a -> s.canUploadTo(a.getTeamId())));
+        model.addAttribute("hasInstances", instances.findAllByOrderByNameAsc().stream().anyMatch(i -> s.canDeployTo(i.getId())));
         return "deployments/new";
     }
 
     @GetMapping("/deployments/{id}")
     public String detail(@PathVariable long id, Model model) {
-        DeploymentRun run = service.find(id);
+        DeploymentRun run = service.findVisible(id, access.current());
         model.addAttribute("pageTitle", (run.isRollback() ? "Rollback #" : "Deployment #") + id);
         model.addAttribute("run", run);
         model.addAttribute("targetCount", targets.findByRunIdOrderBySequenceAsc(id).size());
@@ -81,10 +86,12 @@ public class DeploymentController {
     // ---- data for the wizard ----
 
     public record WizardRelease(Long id, String versionLabel, Instant uploadedAt, boolean hasNotes, String sha256) { }
-    public record WizardApplication(Long id, String name, List<WizardRelease> releases) { }
+    /** {@code teamId}: an application deploys only to instances (and groups) of the same team. */
+    public record WizardApplication(Long id, String name, List<WizardRelease> releases, Long teamId) { }
     public record WizardInstance(Long id, String name, String hostName, String hostname, Environment environment, String method,
-                                 String filename, String contextPath, boolean enabled, String connectivity, String connectivityState, List<Long> groupIds) { }
-    public record WizardGroup(Long id, String name) { }
+                                 String filename, String contextPath, boolean enabled, String connectivity, String connectivityState, List<Long> groupIds,
+                                 Long teamId) { }
+    public record WizardGroup(Long id, String name, Long teamId) { }
     public record WizardEnvironment(Environment id, String label, long instanceCount, boolean production) { }
     public record WizardOptions(List<WizardApplication> applications, List<WizardEnvironment> environments, List<WizardInstance> instances,
                                 List<WizardGroup> groups, int maxParallel) { }
@@ -93,11 +100,14 @@ public class DeploymentController {
     @ResponseBody
     public WizardOptions wizardOptions() {
         Map<Long, ConnectivityStatus> statuses = connections.latestInstanceStatuses();
-        List<TomcatInstance> all = instances.findAllByOrderByNameAsc();
-        List<WizardApplication> apps = applications.findAllByOrderByNameAsc().stream().map(a -> new WizardApplication(a.getId(), a.getName(),
+        com.tomcatmanager.access.AccessScope scope = access.current();
+        // Only what the user can deploy: instances with deploy access, and applications of teams where they have such an instance.
+        List<TomcatInstance> all = instances.findAllByOrderByNameAsc().stream().filter(i -> scope.canDeployTo(i.getId())).toList();
+        List<WizardApplication> apps = applications.findAllByOrderByNameAsc().stream().filter(a -> scope.canUploadTo(a.getTeamId()))
+                .map(a -> new WizardApplication(a.getId(), a.getName(),
                 releases.findByApplicationIdOrderByUploadedAtDesc(a.getId()).stream().filter(r -> !r.isArchived())
                         .map(r -> new WizardRelease(r.getId(), r.getVersionLabel(), r.getUploadedAt(), r.hasReleaseNotes(), r.getArtifact().getSha256()))
-                        .toList())).toList();
+                        .toList(), a.getTeamId())).toList();
         List<WizardEnvironment> envs = Arrays.stream(Environment.values())
                 .map(e -> new WizardEnvironment(e, e.label(), all.stream().filter(i -> i.getEnvironment() == e).count(), e.isProduction())).toList();
         List<WizardInstance> list = all.stream().map(i -> {
@@ -106,9 +116,11 @@ public class DeploymentController {
             return new WizardInstance(i.getId(), i.getName(), i.getHost().getName(), i.getHost().getHostname(), i.getEnvironment(),
                     i.getDeploymentMethod() == TomcatInstance.DeploymentMethod.SSH_SFTP ? "SSH / SFTP" : "Tomcat Manager", filename,
                     filename != null && DeploymentFilename.isValid(filename) ? DeploymentFilename.contextPath(filename) : null,
-                    i.isEnabled() && i.getHost().isEnabled(), s.label(), s.state().name(), i.getGroups().stream().map(ServerGroup::getId).toList());
+                    i.isEnabled() && i.getHost().isEnabled(), s.label(), s.state().name(), i.getGroups().stream().map(ServerGroup::getId).toList(),
+                    i.getHost().getTeamId());
         }).toList();
-        List<WizardGroup> groupList = groups.findAll().stream().map(g -> new WizardGroup(g.getId(), g.getName())).toList();
+        List<WizardGroup> groupList = groups.findAll().stream().filter(g -> scope.canViewTeam(g.getTeamId()))
+                .map(g -> new WizardGroup(g.getId(), g.getName(), g.getTeamId())).toList();
         return new WizardOptions(apps, envs, list, groupList, properties.maxParallelTargets());
     }
 

@@ -14,7 +14,8 @@
     <div class="page-intro d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div class="min-w-0">
             <div class="eyebrow">APPLICATION</div>
-            <h1 class="h3 mb-1" th:text="${app.name}">app</h1>
+            <h1 class="h3 mb-1 d-flex flex-wrap align-items-center gap-2"><span th:text="${app.name}">app</span>
+                <span th:replace="~{fragments/access :: teamBadge(${appTeam?.name})}"></span></h1>
             <p class="text-secondary mb-0" th:text="${app.description ?: 'No description'}"></p>
         </div>
         <div class="d-flex gap-2 flex-wrap">

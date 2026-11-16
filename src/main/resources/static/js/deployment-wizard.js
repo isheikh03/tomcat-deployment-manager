@@ -48,7 +48,12 @@
         const select = $("#w-app");
         select.replaceChildren(el("option", { value: "", text: "Choose application…" }),
             ...state.options.applications.map((a) => el("option", { value: a.id, text: a.name + " (" + a.releases.length + " release" + (a.releases.length === 1 ? "" : "s") + ")" })));
-        select.addEventListener("change", () => { state.app = state.options.applications.find((a) => String(a.id) === select.value) || null; state.release = null; renderReleases(); update(); });
+        select.addEventListener("change", () => {
+            state.app = state.options.applications.find((a) => String(a.id) === select.value) || null; state.release = null;
+            // An application deploys only to its own team's instances: start the choice of targets again.
+            state.environment = null; state.targets.clear(); state.group = "";
+            renderReleases(); renderEnvironments(); fillGroups(); renderTargets(); update();
+        });
         const pre = root.dataset.preselectedRelease;
         if (pre) {
             const app = state.options.applications.find((a) => a.releases.some((r) => String(r.id) === pre));
@@ -74,12 +79,13 @@
     function renderEnvironments() {
         renderUnassigned();
         $("[data-environments]").replaceChildren(...state.options.environments.map((e) => {
-            const input = el("input", { type: "radio", name: "environment", value: e.id, disabled: e.instanceCount === 0, checked: state.environment === e.id });
+            const count = teamInstances().filter((i) => i.environment === e.id).length;
+            const input = el("input", { type: "radio", name: "environment", value: e.id, disabled: count === 0, checked: state.environment === e.id });
             input.addEventListener("change", () => { state.environment = e.id; state.targets.clear(); state.group = ""; $("#w-group").value = ""; invalidatePreview(); renderTargets(); update(); });
-            return el("label", { class: "env-card" + (e.production ? " production" : "") + (e.instanceCount === 0 ? " empty" : ""),
-                    title: e.instanceCount === 0 ? "No Tomcat instance is assigned to " + e.label + " yet" : null }, input,
+            return el("label", { class: "env-card" + (e.production ? " production" : "") + (count === 0 ? " empty" : ""),
+                    title: count === 0 ? "No Tomcat instance is assigned to " + e.label + " yet" : null }, input,
                 el("strong", { text: e.label }),
-                el("small", { text: e.instanceCount === 0 ? "No instances assigned" : e.instanceCount + " instance" + (e.instanceCount === 1 ? "" : "s") }),
+                el("small", { text: count === 0 ? "No instances assigned" : count + " instance" + (count === 1 ? "" : "s") }),
                 e.production ? el("small", { class: "text-danger", text: "Sequential · notes · typed confirmation" }) : null);
         }));
     }
@@ -104,11 +110,20 @@
     }
 
     // ---------- step 3: targets ----------
-    function instancesInEnv() { return state.options.instances.filter((i) => i.environment === state.environment); }
+    /** Instances of the chosen application's team (an application deploys only to its own team). */
+    function teamInstances() { return state.options.instances.filter((i) => !state.app || i.teamId === state.app.teamId); }
+    function instancesInEnv() { return teamInstances().filter((i) => i.environment === state.environment); }
+
+    /** Server groups of the chosen application's team. */
+    function fillGroups() {
+        const select = $("#w-group");
+        const groups = state.options.groups.filter((g) => !state.app || g.teamId === state.app.teamId);
+        select.replaceChildren(el("option", { value: "", text: "Individual instances" }), ...groups.map((g) => el("option", { value: g.id, text: g.name })));
+    }
 
     function renderGroups() {
         const select = $("#w-group");
-        select.append(...state.options.groups.map((g) => el("option", { value: g.id, text: g.name })));
+        fillGroups();
         select.addEventListener("change", () => {
             state.group = select.value;
             state.targets.clear();

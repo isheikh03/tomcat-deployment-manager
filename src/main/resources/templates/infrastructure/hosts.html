@@ -33,6 +33,7 @@
             </div>
             <button class="btn btn-primary" type="submit">Search</button>
             <div class="list-toolbar-filters">
+                <select th:replace="~{fragments/access :: teamFilter}"></select>
                 <select class="form-select" name="hostKey" aria-label="Host key" data-autosubmit>
                     <option value="">--Host Key--</option>
                     <option value="pinned" th:selected="${hostKey == 'pinned'}">Pinned</option>
@@ -77,10 +78,11 @@
 
         <div class="table-responsive" th:if="${view.totalElements > 0}">
             <table class="table table-hover align-middle mb-0 list-table">
-                <thead><tr><th>Server name</th><th>Hostname / IP</th><th>SSH account</th><th>Instances</th><th>Host key</th><th>Connectivity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <thead><tr><th>Server name</th><th th:if="${showTeams}">Team</th><th>Hostname / IP</th><th>SSH account</th><th>Instances</th><th>Host key</th><th>Connectivity</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
                 <tbody>
                 <tr th:each="h : ${view.content}">
                     <td><a class="fw-semibold" th:href="@{/infrastructure/hosts/{id}(id=${h.id})}" th:text="${h.name}">host</a></td>
+                    <td th:if="${showTeams}"><span th:replace="~{fragments/access :: teamBadge(${teamNames.get(h.teamId)})}"></span></td>
                     <td><code th:text="${h.hostname + ':' + h.sshPort}">host:22</code></td>
                     <td class="text-nowrap"><span th:text="${h.sshUsername ?: '—'}"></span> <span class="small text-secondary" th:text="${h.sshAuthMethod.name() == 'PRIVATE_KEY' ? '(key)' : '(password)'}"></span></td>
                     <td th:with="n=${instanceCounts.getOrDefault(h.id, 0L)}">

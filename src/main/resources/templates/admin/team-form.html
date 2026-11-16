@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="dark" data-menu-styles="dark" data-toggled="close" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
+<body>
+<div class="page">
+<header th:replace="~{fragments/layout :: header}"></header>
+<aside th:replace="~{fragments/layout :: sidebar('teams')}"></aside>
+<main class="main-content app-content">
+<div class="container-fluid">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a th:href="@{/admin/teams}">Teams</a></li>
+        <li class="breadcrumb-item active" th:text="${teamId == null} ? 'Create team' : ${name}">team</li>
+    </ol></nav>
+    <th:block th:replace="~{fragments/layout :: flash}"></th:block>
+    <section class="panel" style="max-width: 720px">
+        <h1 class="h4 mb-3" th:text="${teamId == null} ? 'Create team' : 'Edit team'">Team</h1>
+        <form th:action="@{/admin/teams/save}" method="post" novalidate>
+            <input type="hidden" name="id" th:value="${teamId}" th:if="${teamId != null}">
+            <div class="mb-3"><label class="form-label" for="name">Name</label>
+                <input class="form-control" id="name" name="name" th:value="${name}" th:classappend="${nameError != null} ? ' is-invalid'" maxlength="100" required autofocus
+                       placeholder="e.g. Payments">
+                <div class="invalid-feedback" th:text="${nameError}"></div></div>
+            <div class="mb-3"><label class="form-label" for="description">Description <span class="text-secondary small">(optional)</span></label>
+                <textarea class="form-control" id="description" name="description" rows="3" maxlength="500" th:text="${description}"
+                          placeholder="What the team runs, who to contact"></textarea></div>
+            <button class="btn btn-primary" type="submit" th:text="${teamId == null} ? 'Create team' : 'Save changes'">Save</button>
+            <a class="btn btn-outline-secondary" th:href="${teamId == null} ? @{/admin/teams} : @{/admin/teams/{id}(id=${teamId})}">Cancel</a>
+        </form>
+    </section>
+</div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

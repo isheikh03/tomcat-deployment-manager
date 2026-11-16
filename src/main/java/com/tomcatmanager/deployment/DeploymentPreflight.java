@@ -45,12 +45,14 @@ public class DeploymentPreflight {
     private final RemoteInspector inspector;
     private final ArtifactStorage storage;
     private final DeploymentProperties properties;
+    private final com.tomcatmanager.access.Access access;
 
     public DeploymentPreflight(ReleaseRepository releases, TomcatInstanceRepository instances, ServerGroupRepository groups,
                                DeploymentTargetRepository targets, ConnectionTestService connections, RemoteInspector inspector,
-                               ArtifactStorage storage, DeploymentProperties properties) {
+                               ArtifactStorage storage, DeploymentProperties properties, com.tomcatmanager.access.Access access) {
         this.releases = releases; this.instances = instances; this.groups = groups; this.targets = targets;
         this.connections = connections; this.inspector = inspector; this.storage = storage; this.properties = properties;
+        this.access = access;
     }
 
     public record TargetSpec(Long instanceId, String filename) { }
@@ -76,6 +78,10 @@ public class DeploymentPreflight {
         if (request.releaseId() == null) throw new IllegalArgumentException("Choose a release.");
         if (request.environment() == null) throw new IllegalArgumentException("Choose an environment.");
         Release release = releases.findById(request.releaseId()).orElseThrow(() -> new NoSuchElementException("Release " + request.releaseId() + " not found."));
+        // Access: the release's application must be visible; each target must be one the user can deploy to, in the application's team.
+        com.tomcatmanager.access.AccessScope scope = access.current();
+        Long appTeam = release.getApplication().getTeamId();
+        if (!scope.canViewApplication(appTeam)) throw new NoSuchElementException("Release " + request.releaseId() + " not found.");
         DeploymentRun.Strategy strategy = request.strategy() == null ? DeploymentRun.Strategy.SEQUENTIAL : request.strategy();
         int maxParallel = strategy == DeploymentRun.Strategy.SEQUENTIAL ? 1 : request.maxParallel() == null ? 2 : request.maxParallel();
         boolean production = request.environment().isProduction();
@@ -94,6 +100,9 @@ public class DeploymentPreflight {
         Set<Long> groupMembers = null;
         if (request.serverGroupId() != null) {
             ServerGroup group = groups.findById(request.serverGroupId()).orElseThrow(() -> new NoSuchElementException("Server group not found."));
+            if (!scope.canViewTeam(group.getTeamId())) throw new NoSuchElementException("Server group not found.");
+            if (!java.util.Objects.equals(group.getTeamId(), appTeam))
+                blockers.add("Server group " + group.getName() + " belongs to another team; " + release.getApplication().getName() + " deploys only to its own team's instances.");
             groupName = group.getName();
             groupMembers = new HashSet<>();
             for (TomcatInstance i : instances.findAllByOrderByNameAsc())
@@ -108,7 +117,12 @@ public class DeploymentPreflight {
         for (TargetSpec spec : specs) {
             if (spec.instanceId() == null || !seen.add(spec.instanceId())) { blockers.add("Each instance can be selected only once."); continue; }
             TomcatInstance instance = instances.findById(spec.instanceId()).orElse(null);
-            if (instance == null) { blockers.add("Instance " + spec.instanceId() + " no longer exists."); continue; }
+            // An instance outside the user's access is reported like a missing one: its existence is not revealed.
+            if (instance == null || !scope.canViewInstance(instance.getId())) { blockers.add("Instance " + spec.instanceId() + " no longer exists."); continue; }
+            if (!scope.canDeployTo(instance.getId()))
+                blockers.add("You have view-only access to " + instance.getName() + "; deploying needs deploy access.");
+            if (!java.util.Objects.equals(instance.getHost().getTeamId(), appTeam))
+                blockers.add(instance.getName() + " belongs to another team; " + release.getApplication().getName() + " deploys only to its own team's instances.");
             if (groupMembers != null && !groupMembers.contains(instance.getId()))
                 blockers.add(instance.getName() + " is not a member of server group " + groupName + ".");
             rows.add(evaluateTarget(instance, spec, release, request.environment(), requirements, production, actor));

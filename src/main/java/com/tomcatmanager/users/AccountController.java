@@ -11,16 +11,18 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.security.Principal;
 
-/** Sign-in page, first-administrator setup and the signed-in user's own account. */
+/** Sign-in page, first super user setup and the signed-in user's own account. */
 @Controller
 public class AccountController {
     private final UserAccountService accounts;
     private final UserBootstrap bootstrap;
     private final boolean secureCookie;
+    private final com.tomcatmanager.access.AccessAdminService accessAdmin;
 
     public AccountController(UserAccountService accounts, UserBootstrap bootstrap,
-                             @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
-        this.accounts = accounts; this.bootstrap = bootstrap; this.secureCookie = secureCookie;
+                             @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie,
+                             com.tomcatmanager.access.AccessAdminService accessAdmin) {
+        this.accounts = accounts; this.bootstrap = bootstrap; this.secureCookie = secureCookie; this.accessAdmin = accessAdmin;
     }
 
     /** Shown in the password hints of the setup and change-password pages. */
@@ -54,14 +56,18 @@ public class AccountController {
             model.addAttribute("username", username);
             return "account/setup";
         }
-        flash.addFlashAttribute("success", "Administrator created. Sign in with your new account.");
+        flash.addFlashAttribute("success", "Super user created. Sign in with your new account.");
         return "redirect:/login";
     }
 
     @GetMapping("/account")
     public String account(Principal principal, Model model) {
         model.addAttribute("pageTitle", "My account");
-        model.addAttribute("user", accounts.findByUsername(principal.getName()).orElseThrow());
+        AppUser user = accounts.findByUsername(principal.getName()).orElseThrow();
+        model.addAttribute("user", user);
+        // My access: an administrator's teams, or an operator's or viewer's instance grants.
+        model.addAttribute("myTeams", accessAdmin.teamsOf(user.getId()));
+        model.addAttribute("myGrants", accessAdmin.grantsOf(user.getId()));
         return "account/account";
     }
 

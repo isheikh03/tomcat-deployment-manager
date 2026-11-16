@@ -17,16 +17,21 @@ public class QuickDeploymentController {
     private final TomcatInstanceRepository instances;
     private final ArtifactStorage storage;
 
-    public QuickDeploymentController(ApplicationRepository applications, TomcatInstanceRepository instances, ArtifactStorage storage) {
-        this.applications = applications; this.instances = instances; this.storage = storage;
+    private final com.tomcatmanager.access.Access access;
+
+    public QuickDeploymentController(ApplicationRepository applications, TomcatInstanceRepository instances, ArtifactStorage storage,
+                                     com.tomcatmanager.access.Access access) {
+        this.applications = applications; this.instances = instances; this.storage = storage; this.access = access;
     }
 
     @GetMapping("/deployments/quick")
     public String page(Model model) {
         model.addAttribute("pageTitle", "Quick deployment");
         model.addAttribute("requestId", UUID.randomUUID());
-        model.addAttribute("hasInstances", instances.count() > 0);
-        model.addAttribute("applicationNames", applications.findAllByOrderByNameAsc().stream().map(ManagedApplication::getName).toList());
+        var s = access.current();
+        model.addAttribute("hasInstances", instances.findAllByOrderByNameAsc().stream().anyMatch(i -> s.canDeployTo(i.getId())));
+        model.addAttribute("applicationNames", applications.findAllByOrderByNameAsc().stream().filter(a -> s.canUploadTo(a.getTeamId()))
+                .map(ManagedApplication::getName).toList());
         model.addAttribute("maxBytes", storage.maxBytes());
         model.addAttribute("maxSize", ArtifactStorage.humanSize(storage.maxBytes()));
         return "deployments/quick";

@@ -63,7 +63,26 @@ public class UserAccountService {
         return null;
     }
 
+    /** Whether the signed-in user is a super user. */
+    public boolean isSuperUser(String actor) {
+        return findByUsername(actor).map(u -> u.getRole() == Role.SUPER_ADMIN).orElse(false);
+    }
+
+    /** Roles the actor may give to a user: only a super user can create or promote super users. */
+    public List<Role> assignableRoles(String actor) {
+        return isSuperUser(actor) ? List.of(Role.values()) : List.of(Role.ADMIN, Role.DEPLOYMENT_OPERATOR, Role.VIEWER);
+    }
+
+    /** Only a super user may change, reset or unlock a super user's account. */
+    private void requireMayManage(String actor, AppUser target) {
+        if (target.getRole() == Role.SUPER_ADMIN && !isSuperUser(actor))
+            throw new IllegalArgumentException("Only a super user can change a super user's account.");
+    }
+
     public void validate(UserForm f, String actor, Errors errors) {
+        boolean actorIsSuper = isSuperUser(actor);
+        if (f.getRole() == Role.SUPER_ADMIN && !actorIsSuper)
+            errors.rejectValue("role", "superOnly", "Only a super user can create a super user or give this role.");
         if (f.isNew()) {
             if (f.getUsername() == null || !f.getUsername().matches("^[a-z0-9][a-z0-9._-]{1,59}$"))
                 errors.rejectValue("username", "invalid", "2–60 characters: lowercase letters, digits, dot, dash or underscore; start with a letter or digit.");
@@ -76,11 +95,13 @@ public class UserAccountService {
         }
         AppUser existing = find(f.getId());
         boolean self = existing.getUsername().equalsIgnoreCase(actor);
-        if (self && f.getRole() != Role.ADMIN) errors.rejectValue("role", "self", "You cannot remove your own administrator role. Ask another administrator.");
+        if (existing.getRole() == Role.SUPER_ADMIN && !actorIsSuper)
+            errors.rejectValue("role", "superOnly", "Only a super user can change a super user's account.");
+        if (self && f.getRole() != existing.getRole()) errors.rejectValue("role", "self", "You cannot change your own role. Ask another super user or administrator.");
         if (self && !f.isEnabled()) errors.rejectValue("enabled", "self", "You cannot disable your own account.");
-        if (existing.getRole() == Role.ADMIN && existing.isEnabled() && (f.getRole() != Role.ADMIN || !f.isEnabled())
-                && users.countByRoleAndEnabledTrue(Role.ADMIN) <= 1)
-            errors.rejectValue("role", "lastAdmin", "This is the last enabled administrator. Create or enable another administrator first.");
+        if (existing.getRole() == Role.SUPER_ADMIN && existing.isEnabled() && (f.getRole() != Role.SUPER_ADMIN || !f.isEnabled())
+                && users.countByRoleAndEnabledTrue(Role.SUPER_ADMIN) <= 1)
+            errors.rejectValue("role", "lastSuperUser", "This is the last enabled super user. Create or enable another super user first.");
     }
 
     public AppUser create(UserForm f, String actor) {
@@ -114,6 +135,7 @@ public class UserAccountService {
     /** Administrator sets a temporary password; the user must change it at the next sign-in. */
     public void resetPassword(long id, String temporaryPassword, String actor) {
         AppUser user = find(id);
+        requireMayManage(actor, user);
         String problem = passwordProblem(user.getUsername(), temporaryPassword);
         if (problem != null) throw new IllegalArgumentException(problem);
         user.setPasswordHash(encoder.encode(temporaryPassword), true);
@@ -123,8 +145,9 @@ public class UserAccountService {
         expireSessions(user.getUsername());
     }
 
-    public void unlock(long id) {
+    public void unlock(long id, String actor) {
         AppUser user = find(id);
+        requireMayManage(actor, user);
         user.unlock();
         users.save(user);
         audit.success("USER_UNLOCKED", "USER", user.getUsername(), "Unlocked user " + user.getUsername() + ".");

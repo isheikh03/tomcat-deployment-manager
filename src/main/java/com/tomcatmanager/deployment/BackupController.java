@@ -15,20 +15,43 @@ import java.security.Principal;
 import java.time.Instant;
 import java.util.List;
 
-/** Backup management page and API. Verify: ADMIN or DEPLOYMENT_OPERATOR; delete: ADMIN; reading: signed-in users. */
+/**
+ * Backup management page and API. Everyone sees the backups of the Tomcat instances they can see; verifying needs deploy
+ * access to the instance; deleting needs administering the instance's team.
+ */
 @Controller
 public class BackupController {
     private final BackupService service;
     private final DeploymentProperties properties;
     private final StorageCleanupService cleanup;
+    private final com.tomcatmanager.access.Access access;
+    private final com.tomcatmanager.infrastructure.TomcatInstanceRepository instanceRepository;
 
-    public BackupController(BackupService service, DeploymentProperties properties, StorageCleanupService cleanup) {
-        this.service = service; this.properties = properties; this.cleanup = cleanup;
+    public BackupController(BackupService service, DeploymentProperties properties, StorageCleanupService cleanup,
+                            com.tomcatmanager.access.Access access, com.tomcatmanager.infrastructure.TomcatInstanceRepository instanceRepository) {
+        this.service = service; this.properties = properties; this.cleanup = cleanup; this.access = access; this.instanceRepository = instanceRepository;
+    }
+
+    /** Backups of the instances the user can see. */
+    private List<BackupService.Entry> visible(com.tomcatmanager.access.AccessScope s) {
+        return service.list().stream().filter(e -> e.target().getInstanceId() != null && s.canViewInstance(e.target().getInstanceId())).toList();
+    }
+
+    private BackupService.Entry visibleEntry(long backupId, com.tomcatmanager.access.AccessScope s) {
+        return visible(s).stream().filter(e -> e.backup().getId().equals(backupId)).findFirst()
+                .orElseThrow(() -> new java.util.NoSuchElementException("Backup " + backupId + " not found."));
+    }
+
+    /** Deleting a backup: administrators of the team its instance belongs to. */
+    private boolean canDelete(BackupService.Entry e, com.tomcatmanager.access.AccessScope s) {
+        if (s.isEverything()) return true;
+        return instanceRepository.findById(e.target().getInstanceId()).map(i -> s.canManageInstance(i.getHost().getTeamId())).orElse(false);
     }
 
     @GetMapping("/backups")
     public String index(@RequestParam(required = false) Long instance, Model model) {
-        List<BackupService.Entry> all = service.list();
+        com.tomcatmanager.access.AccessScope s = access.current();
+        List<BackupService.Entry> all = visible(s);
         // Instances that have restore points, for the filter: id -> name.
         java.util.Map<Long, String> instances = new java.util.TreeMap<>();
         for (BackupService.Entry e : all)
@@ -40,11 +63,14 @@ public class BackupController {
         model.addAttribute("entries", entries);
         model.addAttribute("instances", instances);
         model.addAttribute("instance", selected);
-        // The summary cards always describe all backups, whatever the filter.
+        // The summary cards describe all backups the user can see, whatever the filter.
         model.addAttribute("serverBackupCount", all.stream().filter(BackupService.Entry::serverBackup).count());
         model.addAttribute("protectedCount", all.stream().filter(BackupService.Entry::rollbackPoint).count());
         model.addAttribute("missingCount", all.stream().filter(e -> !e.fileExists()).count());
-        model.addAttribute("totalSize", ArtifactStorage.humanSize(service.totalServerBackupBytes()));
+        model.addAttribute("totalSize", ArtifactStorage.humanSize(s.isEverything() ? service.totalServerBackupBytes()
+                : all.stream().filter(BackupService.Entry::serverBackup).mapToLong(e -> e.backup().getSizeBytes() == null ? 0 : e.backup().getSizeBytes()).sum()));
+        // Backups the user may delete (their teams' instances); the page offers selection and Delete only for these.
+        model.addAttribute("deletable", all.stream().filter(e -> canDelete(e, s)).map(e -> e.backup().getId()).collect(java.util.stream.Collectors.toSet()));
         model.addAttribute("backupDir", properties.backupDir().toAbsolutePath().normalize().toString());
         model.addAttribute("retention", service.retentionPerContext());
         model.addAttribute("freeSpace", freeSpace());
@@ -66,6 +92,10 @@ public class BackupController {
     @PostMapping("/backups/cleanup")
     public String cleanupConfirm(@RequestParam(name = "backupIds", required = false) List<Long> backupIds, @RequestParam(required = false) String reason,
                                  @RequestParam(required = false) Long instance, Principal principal, RedirectAttributes flash) {
+        // Every selected backup must be one the user may delete (their teams' instances); otherwise nothing is deleted.
+        com.tomcatmanager.access.AccessScope s = access.current();
+        if (backupIds != null) for (Long id : backupIds)
+            if (!canDelete(visibleEntry(id, s), s)) throw new com.tomcatmanager.access.NotPermittedException("You can delete only backups of your teams' instances.");
         try {
             StorageCleanupService.Result result = cleanup.deleteBackups(backupIds, principal.getName(), reason);
             flash.addFlashAttribute(result.removed() > 0 && result.problems().isEmpty() ? "success" : "error", result.message("backup"));
@@ -89,11 +119,17 @@ public class BackupController {
 
     @GetMapping("/api/backups")
     @ResponseBody
-    public List<BackupDto> list() { return service.list().stream().map(BackupDto::from).toList(); }
+    public List<BackupDto> list() { return visible(access.current()).stream().map(BackupDto::from).toList(); }
 
     @PostMapping("/api/backups/{id}/verify")
     @ResponseBody
-    public ArtifactStorage.Verification verify(@PathVariable long id, Principal principal) { return service.verify(id, principal.getName()); }
+    public ArtifactStorage.Verification verify(@PathVariable long id, Principal principal) {
+        com.tomcatmanager.access.AccessScope s = access.current();
+        BackupService.Entry e = visibleEntry(id, s);
+        if (!s.canDeployTo(e.target().getInstanceId()))
+            throw new com.tomcatmanager.access.NotPermittedException("You need deploy access to " + e.target().getInstanceName() + " to verify its backups.");
+        return service.verify(id, principal.getName());
+    }
 
     /** {@code confirmRollbackPoint} is required to delete the current rollback point of a deployment. */
     public record DeleteRequest(String reason, Boolean confirmRollbackPoint) { }
@@ -101,6 +137,8 @@ public class BackupController {
     @PostMapping("/api/backups/{id}/delete")
     @ResponseBody
     public java.util.Map<String, Object> delete(@PathVariable long id, @RequestBody DeleteRequest body, Principal principal) {
+        com.tomcatmanager.access.AccessScope s = access.current();
+        if (!canDelete(visibleEntry(id, s), s)) throw new com.tomcatmanager.access.NotPermittedException("You can delete only backups of your teams' instances.");
         service.delete(id, principal.getName(), body == null ? null : body.reason(), body != null && Boolean.TRUE.equals(body.confirmRollbackPoint()));
         return java.util.Map.of("deleted", true, "id", id);
     }

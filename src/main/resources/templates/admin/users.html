@@ -18,7 +18,7 @@
     <th:block th:replace="~{fragments/layout :: flash}"></th:block>
 
     <div class="row g-3 mb-3">
-        <div class="col-12 col-lg-4" th:each="r : ${roles}">
+        <div class="col-12 col-md-6 col-xl-3" th:each="r : ${roles}">
             <div class="metric-card h-100"><div class="metric-label" th:text="${r.label()}">Role</div>
                 <div class="small text-secondary" th:text="${r.description()}"></div></div>
         </div>
@@ -27,14 +27,17 @@
     <section class="panel p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last sign-in</th><th>Password</th><th class="text-end"></th></tr></thead>
+                <thead><tr><th>User</th><th>Role</th><th>Teams</th><th>Status</th><th>Last sign-in</th><th>Password</th><th class="text-end"></th></tr></thead>
                 <tbody>
                 <tr th:each="u : ${users}">
-                    <td><a class="fw-semibold" th:href="@{/admin/users/{id}/edit(id=${u.id})}" th:text="${u.username}"></a>
+                    <td><a th:if="${manageableIds.contains(u.id)}" class="fw-semibold" th:href="@{/admin/users/{id}/edit(id=${u.id})}" th:text="${u.username}"></a><span th:unless="${manageableIds.contains(u.id)}" class="fw-semibold" th:text="${u.username}"></span>
                         <span th:if="${u.username == #authentication.name}" class="badge text-bg-light border ms-1">you</span>
                         <div class="small text-secondary" th:text="${(u.displayName ?: '') + (u.email != null ? ' · ' + u.email : '')}"></div></td>
-                    <td><span class="badge" th:classappend="${u.role.name() == 'ADMIN'} ? ' text-bg-dark' : (${u.role.name() == 'VIEWER'} ? ' text-bg-light border' : ' text-bg-primary')"
+                    <td><span class="badge" th:classappend="${u.role.name() == 'SUPER_ADMIN'} ? ' text-bg-danger' : (${u.role.name() == 'ADMIN'} ? ' text-bg-dark' : (${u.role.name() == 'VIEWER'} ? ' text-bg-light border' : ' text-bg-primary'))"
                               th:text="${u.role.label()}"></span></td>
+                    <td class="small"><span th:if="${u.role.name() == 'SUPER_ADMIN'}" class="text-secondary">All teams</span>
+                        <th:block th:unless="${u.role.name() == 'SUPER_ADMIN'}"><span th:each="t : ${userTeams.get(u.id)}" class="badge text-bg-light border me-1" th:text="${t}"></span>
+                        <span th:if="${#lists.isEmpty(userTeams.get(u.id))}" class="text-warning" title="This user sees nothing until access is given"><i class="bx bx-error-circle me-1"></i>No access yet</span></th:block></td>
                     <td>
                         <span th:if="${!u.enabled}" class="badge text-bg-secondary">Disabled</span>
                         <span th:if="${u.enabled and u.locked}" class="badge text-bg-danger" th:title="'Until ' + ${@time.format(u.lockedUntil)}">Locked</span>
@@ -44,9 +47,9 @@
                     <td class="small"><span th:if="${u.mustChangePassword}" class="badge text-bg-warning">Temporary</span>
                         <span th:unless="${u.mustChangePassword}" th:text="'Changed ' + ${@time.format(u.passwordChangedAt)}"></span></td>
                     <td class="text-end text-nowrap">
-                        <form th:if="${u.locked}" class="d-inline" method="post" th:action="@{/admin/users/{id}/unlock(id=${u.id})}">
+                        <form th:if="${u.locked and manageableIds.contains(u.id)}" class="d-inline" method="post" th:action="@{/admin/users/{id}/unlock(id=${u.id})}">
                             <button class="btn btn-sm btn-outline-danger" type="submit">Unlock</button></form>
-                        <a class="btn btn-icon btn-sm btn-secondary-light" th:href="@{/admin/users/{id}/edit(id=${u.id})}" title="Edit" aria-label="Edit"><i class="bx bx-edit-alt"></i></a></td>
+                        <a th:if="${manageableIds.contains(u.id)}" class="btn btn-icon btn-sm btn-secondary-light" th:href="@{/admin/users/{id}/edit(id=${u.id})}" title="Edit" aria-label="Edit"><i class="bx bx-edit-alt"></i></a></td>
                 </tr>
                 </tbody>
             </table>

@@ -31,12 +31,22 @@ public class DeploymentApiController {
     private final DeploymentRunRepository runs;
     private final DeploymentLogRepository logs;
     private final DeploymentBackupRepository backups;
+    private final com.tomcatmanager.access.Access access;
 
     public DeploymentApiController(DeploymentService service, DeploymentPreflight preflight, RollbackPreflight rollbacks,
                                    ReconciliationInspector reconciliation, DeploymentTargetRepository targets, DeploymentRunRepository runs,
-                                   DeploymentLogRepository logs, DeploymentBackupRepository backups) {
+                                   DeploymentLogRepository logs, DeploymentBackupRepository backups, com.tomcatmanager.access.Access access) {
         this.service = service; this.preflight = preflight; this.rollbacks = rollbacks; this.reconciliation = reconciliation;
         this.targets = targets; this.runs = runs; this.logs = logs; this.backups = backups;
+        this.access = access;
+    }
+
+    /** Inspecting and reconciling unknown outcomes: administrators of the application's team. */
+    private void requireTeamAdmin(long runId) {
+        com.tomcatmanager.access.AccessScope s = access.current();
+        DeploymentRun run = service.findVisible(runId, s);
+        if (!s.canManageTeam(run.getApplication().getTeamId()))
+            throw new com.tomcatmanager.access.NotPermittedException("Only administrators of this application's team can inspect and reconcile it.");
     }
 
     @PostMapping("/preview")
@@ -57,7 +67,7 @@ public class DeploymentApiController {
     public PageResponse<RunDto> history(@RequestParam(required = false) Long applicationId, @RequestParam(required = false) Environment environment,
                                         @RequestParam(required = false) DeploymentState state, @RequestParam(defaultValue = "0") int page,
                                         @RequestParam(defaultValue = "20") int size) {
-        return PageResponse.of(service.search(applicationId, environment, state, page, size).map(this::dto));
+        return PageResponse.of(service.search(applicationId, environment, state, page, size, access.current()).map(this::dto));
     }
 
     public record StatusDto(RunDto run, List<TargetDto> targets, List<LogDto> logs, long lastLogId) { }
@@ -75,15 +85,21 @@ public class DeploymentApiController {
     /** Status for polling; returns only log entries newer than {@code afterLogId}. */
     @GetMapping("/{id}")
     public StatusDto status(@PathVariable long id, @RequestParam(defaultValue = "0") long afterLogId) {
-        DeploymentRun run = service.find(id);
-        List<DeploymentTarget> list = targets.findByRunIdOrderBySequenceAsc(id);
+        com.tomcatmanager.access.AccessScope s = access.current();
+        DeploymentRun run = service.findVisible(id, s);
+        // Users who see only some targets of the run (instance grants) get only those targets and their log lines.
+        boolean wholeRun = s.isEverything() || s.canManageTeam(run.getApplication().getTeamId());
+        List<DeploymentTarget> list = targets.findByRunIdOrderBySequenceAsc(id).stream()
+                .filter(t -> wholeRun || (t.getInstanceId() != null && s.canViewInstance(t.getInstanceId()))).toList();
+        java.util.Set<Long> shownTargets = list.stream().map(DeploymentTarget::getId).collect(Collectors.toSet());
         List<Long> ids = list.stream().map(DeploymentTarget::getId).toList();
         Map<Long, DeploymentBackup> backupByTarget = backups.findByTargetIdIn(ids).stream()
                 .collect(Collectors.toMap(DeploymentBackup::getTargetId, Function.identity()));
         // newest first, so the first rollback seen per target is the latest one
         Map<Long, DeploymentRun> latestRollback = runs.findByRollbackOfTargetIdInOrderByRequestedAtDesc(ids).stream()
                 .collect(Collectors.toMap(DeploymentRun::getRollbackOfTargetId, Function.identity(), (newer, older) -> newer));
-        List<LogDto> newLogs = logs.findByRunIdAndIdGreaterThanOrderByIdAsc(id, afterLogId).stream().map(LogDto::from).toList();
+        List<LogDto> newLogs = logs.findByRunIdAndIdGreaterThanOrderByIdAsc(id, afterLogId).stream()
+                .filter(l -> wholeRun || l.getTargetId() == null || shownTargets.contains(l.getTargetId())).map(LogDto::from).toList();
         long last = newLogs.isEmpty() ? afterLogId : newLogs.get(newLogs.size() - 1).id();
         // From the target's recorded events (later setting changes do not rewrite history): steps switched off on the
         // instance, and the last step it entered, which is where a failed target stopped.
@@ -105,6 +121,8 @@ public class DeploymentApiController {
 
     @PostMapping("/{id}/cancel")
     public RunDto cancel(@PathVariable long id, Principal principal) {
+        com.tomcatmanager.access.AccessScope s = access.current();
+        service.requireCanOperate(service.findVisible(id, s), s);
         service.cancel(id, principal.getName());
         return dto(service.find(id));
     }
@@ -114,6 +132,7 @@ public class DeploymentApiController {
 
     @PostMapping("/{id}/targets/{targetId}/reconcile")
     public RunDto reconcile(@PathVariable long id, @PathVariable long targetId, @RequestBody ReconcileRequest body, Principal principal) {
+        requireTeamAdmin(id);
         TargetState outcome = body.outcome() != null ? body.outcome()
                 : body.succeeded() == null ? null : body.succeeded() ? TargetState.SUCCEEDED : TargetState.FAILED;
         if (outcome == null) throw new IllegalArgumentException("Choose the outcome you verified.");
@@ -124,6 +143,7 @@ public class DeploymentApiController {
     /** Read-only evidence for reconciling an unknown outcome (deployed file checksum, Tomcat state, one health request). */
     @PostMapping("/{id}/targets/{targetId}/inspect")
     public ReconciliationInspector.Evidence inspect(@PathVariable long id, @PathVariable long targetId, Principal principal) {
+        requireTeamAdmin(id);
         return reconciliation.inspect(id, targetId, principal.getName());
     }
 

@@ -13,10 +13,10 @@
             </div>
             <div class="card custom-card">
                 <div class="card-body p-5">
-                    <p class="h5 fw-semibold mb-2 text-center">Create the first administrator</p>
+                    <p class="h5 fw-semibold mb-2 text-center">Create the first super user</p>
                     <p class="mb-4 text-muted fw-normal text-center small">No account exists yet. To prove you operate this server, enter the one-time
                         <strong>setup token</strong> printed in the application log at startup (search the log for <code>setup token</code>).
-                        This page closes once the administrator exists.</p>
+                        This page closes once the super user exists. The super user then creates the teams and their administrators.</p>
 
                     <div class="alert alert-danger small" th:if="${error}" th:text="${error}" role="alert"></div>
 

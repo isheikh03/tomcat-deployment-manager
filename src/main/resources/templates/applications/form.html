@@ -32,6 +32,20 @@
                     <!-- Application -->
                     <div class="form-section-title mt-0"><i class="bx bx-grid-alt"></i>Application</div>
                     <div class="row g-3">
+                        <!-- Team: chosen when the application is registered, fixed afterwards. -->
+                        <div class="col-12" th:if="${form.id == null}">
+                            <label class="form-label fw-semibold" for="teamId">Team</label>
+                            <select class="form-select" th:field="*{teamId}" th:errorclass="is-invalid" required>
+                                <option value="" th:if="${#lists.size(teams) != 1}">Choose a team…</option>
+                                <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"></option>
+                            </select>
+                            <div class="invalid-feedback" th:errors="*{teamId}"></div>
+                            <div class="form-text">Releases of this application can be deployed only to this team's Tomcat instances. It cannot be changed later.</div>
+                        </div>
+                        <div class="col-12" th:if="${form.id != null and appTeam != null}">
+                            <span class="form-label fw-semibold d-block">Team</span>
+                            <span class="badge text-bg-light border" th:text="${appTeam.name}">Team</span>
+                        </div>
                         <div class="col-12">
                             <label class="form-label fw-semibold" for="name">Name</label>
                             <input class="form-control" th:field="*{name}" th:errorclass="is-invalid" required maxlength="120" placeholder="e.g. Customer Portal" autocomplete="off" autofocus>

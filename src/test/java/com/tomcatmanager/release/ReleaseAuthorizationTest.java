@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Server-side permissions for the release library and application registry. */
 @WebMvcTest({ReleaseApiController.class, ReleaseController.class, ApplicationController.class, com.tomcatmanager.application.ApplicationApiController.class})
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, com.tomcatmanager.support.AllAccess.class})
 class ReleaseAuthorizationTest {
     @Autowired MockMvc mvc;
     @MockitoBean ReleaseService releaseService;
@@ -43,9 +43,17 @@ class ReleaseAuthorizationTest {
     @MockitoBean StoredArtifactRepository artifacts;
     @MockitoBean com.tomcatmanager.deployment.DeploymentRunRepository deploymentRuns;
     @MockitoBean com.tomcatmanager.deployment.StorageCleanupService cleanup;
+    @MockitoBean com.tomcatmanager.access.TeamRepository teams;
 
-    @Test void onlyAdministratorsCleanUpReleaseStorage() throws Exception {
-        for (String role : new String[]{"VIEWER", "DEPLOYMENT_OPERATOR"}) {
+    /** The application uploads go to exists (the upload checks it first). */
+    @org.junit.jupiter.api.BeforeEach void applicationExists() {
+        org.mockito.Mockito.when(applicationService.findVisible(org.mockito.ArgumentMatchers.anyLong(), any()))
+                .thenReturn(new com.tomcatmanager.application.ManagedApplication());
+    }
+
+    /** Release storage is shared by all teams, so only super users clean it up (team administrators cannot). */
+    @Test void onlySuperUsersCleanUpReleaseStorage() throws Exception {
+        for (String role : new String[]{"VIEWER", "DEPLOYMENT_OPERATOR", "ADMIN"}) {
             mvc.perform(get("/releases/cleanup").with(user("u").roles(role))).andExpect(status().isForbidden());
             mvc.perform(post("/releases/cleanup").param("artifactIds", "1").param("reason", "free disk space")
                     .with(csrf()).with(user("u").roles(role))).andExpect(status().isForbidden());
@@ -55,7 +63,7 @@ class ReleaseAuthorizationTest {
         verify(cleanup, never()).removeReleaseFile(org.mockito.ArgumentMatchers.anyLong(), anyString(), anyString(), org.mockito.ArgumentMatchers.anyBoolean());
         verify(cleanup, never()).removeReleaseFiles(any(), anyString(), anyString());
 
-        mvc.perform(post("/releases/1/remove-file").param("reason", "free disk space").with(csrf()).with(user("admin").roles("ADMIN")))
+        mvc.perform(post("/releases/1/remove-file").param("reason", "free disk space").with(csrf()).with(user("admin").roles("SUPER_ADMIN", "ADMIN")))
                 .andExpect(status().is3xxRedirection());
         verify(cleanup).removeReleaseFile(1L, "admin", "free disk space", false);
     }

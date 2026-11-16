@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Infrastructure configuration is administrator-only; operators and viewers are refused on the server. */
 @WebMvcTest(InfrastructureController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, com.tomcatmanager.support.AllAccess.class})
 class InfrastructureAuthorizationTest {
     @Autowired MockMvc mvc;
     @MockitoBean ManagedHostRepository hosts;
@@ -35,6 +35,8 @@ class InfrastructureAuthorizationTest {
     @MockitoBean com.tomcatmanager.deployment.DeploymentTargetRepository deploymentTargets;
     @MockitoBean ServerGroupService groupService;
     @MockitoBean InfrastructureAudit infrastructureAudit;
+    @MockitoBean com.tomcatmanager.access.TeamRepository teams;
+    @MockitoBean com.tomcatmanager.access.AccessAdminService accessAdmin;
 
     @Test void nonAdminsCannotOpenConfigurationForms() throws Exception {
         mvc.perform(get("/infrastructure/hosts/new").with(user("operator").roles("DEPLOYMENT_OPERATOR"))).andExpect(status().isForbidden());
@@ -57,6 +59,8 @@ class InfrastructureAuthorizationTest {
     }
 
     @Test void adminCanOpenHostFormAndSecretsAreNotRendered() throws Exception {
+        // A host is created in one of the administrator's teams.
+        org.mockito.Mockito.when(teams.findAllByOrderByNameAsc()).thenReturn(java.util.List.of(new com.tomcatmanager.access.Team("Blue", null, "test")));
         mvc.perform(get("/infrastructure/hosts/new").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Server host key fingerprint")));
@@ -107,5 +111,27 @@ class InfrastructureAuthorizationTest {
         mvc.perform(get("/infrastructure/hosts").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/infrastructure/hosts/1/edit")));
+    }
+
+    @Test void withSeveralTeamsListsShowAndFilterByTeam() throws Exception {
+        com.tomcatmanager.access.Team blue = new com.tomcatmanager.access.Team("Blue", null, "root"), red = new com.tomcatmanager.access.Team("Red", null, "root");
+        org.springframework.test.util.ReflectionTestUtils.setField(blue, "id", 1L);
+        org.springframework.test.util.ReflectionTestUtils.setField(red, "id", 2L);
+        org.mockito.Mockito.when(teams.findAllByOrderByNameAsc()).thenReturn(java.util.List.of(blue, red));
+        ManagedHost web = InfrastructureListingTest.host(1, "blue-web", "10.0.0.5", true, true), db = InfrastructureListingTest.host(2, "red-db", "10.0.0.6", true, true);
+        web.setTeamId(1L); db.setTeamId(2L);
+        org.mockito.Mockito.when(hosts.findAllByOrderByNameAsc()).thenReturn(java.util.List.of(web, db));
+        mvc.perform(get("/infrastructure/hosts").with(user("viewer").roles("VIEWER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("All teams")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("red-db")));
+        mvc.perform(get("/infrastructure/hosts").param("team", "1").with(user("viewer").roles("VIEWER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("blue-web")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("red-db"))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Team: Blue")));
+        // A team the user cannot see (or nonsense) is ignored.
+        mvc.perform(get("/infrastructure/hosts").param("team", "99").with(user("viewer").roles("VIEWER")))
+                .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("red-db")));
     }
 }

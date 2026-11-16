@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Release storage is cleaned up in a tab of the Release library itself; only administrators get that tab. */
 @WebMvcTest(ReleaseController.class)
-@Import({SecurityConfig.class, DisplayTime.class})
+@Import({SecurityConfig.class, DisplayTime.class, com.tomcatmanager.support.AllAccess.class})
 class ReleaseLibraryTabsTest {
     @Autowired MockMvc mvc;
     @MockitoBean ReleaseService service;
@@ -63,14 +63,14 @@ class ReleaseLibraryTabsTest {
     }
 
     @BeforeEach void library() {
-        when(service.search(any(), anyString(), anyBoolean(), anyInt(), anyInt())).thenReturn(Page.empty());
+        when(service.search(any(), anyString(), anyBoolean(), anyInt(), anyInt(), any())).thenReturn(Page.empty());
         // Built before stubbing: creating mocks inside thenReturn() would interrupt that stubbing.
         List<StorageCleanupService.ReleaseFile> files = List.of(storedFile());
         when(cleanup.releaseFiles(any(), anyString())).thenReturn(files);
     }
 
     @Test void administratorsGetAStorageCleanupTabOnTheLibraryPage() throws Exception {
-        String page = mvc.perform(get("/releases").with(user("admin").roles("ADMIN")))
+        String page = mvc.perform(get("/releases").with(user("admin").roles("SUPER_ADMIN", "ADMIN")))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(page).contains("id=\"tab-releases\"", "id=\"tab-storage\"", "Storage cleanup", "name=\"artifactIds\"", "Remove selected files")
                 .doesNotContain("href=\"/releases/cleanup\"");
@@ -79,7 +79,7 @@ class ReleaseLibraryTabsTest {
     }
 
     @Test void theStorageTabCanBeOpenedDirectly() throws Exception {
-        String page = mvc.perform(get("/releases").param("tab", "storage").with(user("admin").roles("ADMIN")))
+        String page = mvc.perform(get("/releases").param("tab", "storage").with(user("admin").roles("SUPER_ADMIN", "ADMIN")))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(page).containsPattern("id=\"tab-storage\"[^>]*class=\"tab-pane fade\\s+show active\"|class=\"tab-pane fade\\s+show active\"[^>]*id=\"tab-storage\"");
         assertThat(page).contains("name=\"tab\" value=\"storage\"");
@@ -94,7 +94,7 @@ class ReleaseLibraryTabsTest {
     }
 
     @Test void theOldCleanupAddressOpensTheTab() throws Exception {
-        mvc.perform(get("/releases/cleanup").param("app", "2").param("q", "1.0").with(user("admin").roles("ADMIN")))
+        mvc.perform(get("/releases/cleanup").param("app", "2").param("q", "1.0").with(user("admin").roles("SUPER_ADMIN", "ADMIN")))
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/releases?app=2&q=1.0&tab=storage"));
     }
 }

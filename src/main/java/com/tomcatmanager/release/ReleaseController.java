@@ -32,9 +32,20 @@ public class ReleaseController {
     public ReleaseController(ReleaseService service, ReleaseRepository releases, ApplicationRepository applications,
                              TomcatInstanceRepository instances, ArtifactStorage storage, StorageHousekeeping housekeeping,
                              StoredArtifactRepository artifacts, com.tomcatmanager.deployment.DeploymentRunRepository deploymentRuns,
-                             StorageCleanupService cleanup) {
+                             StorageCleanupService cleanup, com.tomcatmanager.access.Access access) {
         this.service = service; this.releases = releases; this.applications = applications; this.instances = instances; this.storage = storage;
         this.housekeeping = housekeeping; this.artifacts = artifacts; this.deploymentRuns = deploymentRuns; this.cleanup = cleanup;
+        this.access = access;
+    }
+
+    private final com.tomcatmanager.access.Access access;
+
+    /** A release whose application's team the user administers. */
+    private Release manageable(long id, com.tomcatmanager.access.AccessScope s) {
+        Release r = service.findVisible(id, s);
+        if (!s.canManageApplication(r.getApplication().getTeamId()))
+            throw new com.tomcatmanager.access.NotPermittedException("Only administrators of this application's team can change its releases.");
+        return r;
     }
 
     /** Disk usage of the release store, shown to administrators above the library and on the cleanup page. */
@@ -49,11 +60,12 @@ public class ReleaseController {
     @GetMapping
     public String library(@RequestParam(required = false) Long app, @RequestParam(defaultValue = "") String q,
                           @RequestParam(defaultValue = "false") boolean archived, @RequestParam(defaultValue = "0") int page,
-                          @RequestParam(defaultValue = "") String tab, org.springframework.security.core.Authentication authentication, Model model) {
-        Page<Release> result = service.search(app, q, archived, page, PAGE_SIZE);
-        // Administrators clean up release storage on this page, in the "Storage cleanup" tab; the same filter applies.
-        boolean admin = authentication != null && authentication.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
-        if (admin) {
+                          @RequestParam(defaultValue = "") String tab, Model model) {
+        com.tomcatmanager.access.AccessScope s = access.current();
+        Page<Release> result = service.search(app, q, archived, page, PAGE_SIZE, s);
+        // Super users clean up release storage on this page, in the "Storage cleanup" tab; the same filter applies.
+        // One stored WAR file can belong to releases of several teams, so storage is managed system-wide.
+        if (s.isSuperUser()) {
             List<StorageCleanupService.ReleaseFile> files = cleanup.releaseFiles(app, q);
             model.addAttribute("files", files);
             model.addAttribute("removableCount", files.stream().filter(f -> f.state() == StorageCleanupService.FileState.STORED).count());
@@ -61,7 +73,7 @@ public class ReleaseController {
         }
         model.addAttribute("pageTitle", "Release library");
         model.addAttribute("releases", result);
-        model.addAttribute("applications", applications.findAllByOrderByNameAsc());
+        model.addAttribute("applications", applications.findAllByOrderByNameAsc().stream().filter(a -> s.canViewApplication(a.getTeamId())).toList());
         model.addAttribute("app", app);
         model.addAttribute("q", q);
         model.addAttribute("archived", archived);
@@ -78,7 +90,9 @@ public class ReleaseController {
     @GetMapping("/upload")
     public String upload(@RequestParam(required = false) Long app, Model model) {
         model.addAttribute("pageTitle", "Upload WAR");
-        model.addAttribute("applications", applications.findAllByOrderByNameAsc());
+        com.tomcatmanager.access.AccessScope s = access.current();
+        // Only applications the user may upload to: they can deploy to an instance of the application's team.
+        model.addAttribute("applications", applications.findAllByOrderByNameAsc().stream().filter(a -> s.canUploadTo(a.getTeamId())).toList());
         model.addAttribute("app", app);
         model.addAttribute("maxBytes", storage.maxBytes());
         model.addAttribute("maxSize", ArtifactStorage.humanSize(storage.maxBytes()));
@@ -90,14 +104,17 @@ public class ReleaseController {
 
     @GetMapping("/{id}")
     public String detail(@PathVariable long id, Model model) {
-        Release release = service.find(id);
+        com.tomcatmanager.access.AccessScope s = access.current();
+        Release release = service.findVisible(id, s);
         Compatibility.Requirements requirements = Compatibility.requirements(release.getApplication(), release.getArtifact());
-        List<CompatibilityRow> rows = instances.findAllByOrderByNameAsc().stream()
+        List<CompatibilityRow> rows = instances.findAllByOrderByNameAsc().stream().filter(i -> s.canViewInstance(i.getId()))
                 .map(i -> new CompatibilityRow(i, Compatibility.evaluate(requirements, i.getTomcatVersion(), i.getJavaVersion()))).toList();
         List<Release> sharing = releases.findByArtifactIdOrderByUploadedAtDesc(release.getArtifact().getId()).stream()
-                .filter(r -> !r.getId().equals(id)).toList();
+                .filter(r -> !r.getId().equals(id)).filter(r -> s.canViewApplication(r.getApplication().getTeamId())).toList();
         model.addAttribute("pageTitle", release.getApplication().getName() + " " + release.getVersionLabel());
         model.addAttribute("release", release);
+        model.addAttribute("canManage", s.canManageApplication(release.getApplication().getTeamId()));
+        model.addAttribute("canEditDetails", s.canUploadTo(release.getApplication().getTeamId()));
         model.addAttribute("artifact", release.getArtifact());
         model.addAttribute("size", ArtifactStorage.humanSize(release.getArtifact().getSizeBytes()));
         model.addAttribute("requirements", requirements);
@@ -111,6 +128,9 @@ public class ReleaseController {
     @PostMapping("/{id}/metadata")
     public String updateMetadata(@PathVariable long id, @RequestParam long version, @RequestParam String versionLabel,
                                  @RequestParam(required = false) String releaseNotes, Principal principal, RedirectAttributes flash) {
+        com.tomcatmanager.access.AccessScope s = access.current();
+        if (!s.canUploadTo(service.findVisible(id, s).getApplication().getTeamId()))
+            throw new com.tomcatmanager.access.NotPermittedException("You need deploy access to this application's team to edit its releases.");
         try {
             service.updateMetadata(id, version, versionLabel, releaseNotes, principal.getName());
             flash.addFlashAttribute("success", "Release details saved. The WAR file itself is unchanged.");
@@ -176,6 +196,7 @@ public class ReleaseController {
 
     @PostMapping("/{id}/archive")
     public String archive(@PathVariable long id, Principal principal, RedirectAttributes flash) {
+        manageable(id, access.current());
         service.setArchived(id, true, principal.getName());
         flash.addFlashAttribute("success", "Release archived. It is hidden from the library and cannot be chosen for new deployments.");
         return "redirect:/releases/" + id;
@@ -183,6 +204,7 @@ public class ReleaseController {
 
     @PostMapping("/{id}/restore")
     public String restore(@PathVariable long id, Principal principal, RedirectAttributes flash) {
+        manageable(id, access.current());
         service.setArchived(id, false, principal.getName());
         flash.addFlashAttribute("success", "Release restored to the library.");
         return "redirect:/releases/" + id;
@@ -190,7 +212,7 @@ public class ReleaseController {
 
     @PostMapping("/{id}/delete")
     public String delete(@PathVariable long id, Principal principal, RedirectAttributes flash) {
-        Long appId = service.find(id).getApplication().getId();
+        Long appId = manageable(id, access.current()).getApplication().getId();
         try { service.delete(id, principal.getName()); }
         catch (IllegalStateException e) { flash.addFlashAttribute("error", e.getMessage()); return "redirect:/releases/" + id; }
         flash.addFlashAttribute("success", "Release deleted.");

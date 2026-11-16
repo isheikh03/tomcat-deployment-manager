@@ -22,6 +22,7 @@ class LoginCsrfTest {
     @Autowired MockMvc mvc;
     @MockitoBean UserAccountService accounts;
     @MockitoBean UserBootstrap bootstrap;
+    @MockitoBean com.tomcatmanager.access.AccessAdminService accessAdmin;
 
     @Test void rejectedSignInReturnsToLoginPage() throws Exception {
         mvc.perform(post("/login").param("username", "admin").param("password", "admin"))
