@@ -105,7 +105,7 @@
                                 <div class="input-group has-validation">
                                     <input type="password" class="form-control" th:field="*{managerSecret}" th:errorclass="is-invalid" autocomplete="new-password"
                                            th:placeholder="*{managerSecretStored} ? 'Leave blank to keep the saved password' : ''">
-                                    <button class="btn btn-light border" type="button" data-toggle-password="managerSecret" aria-label="Show password">Show</button>
+                                    <button class="btn btn-light border" type="button" data-toggle-password="managerSecret" aria-label="Show password" title="Show password"><i class="bx bx-show" aria-hidden="true"></i></button>
                                     <div class="invalid-feedback" th:errors="*{managerSecret}"></div>
                                 </div></div>
                             <div class="col-12" th:if="*{managerSecretStored}"><div class="form-check">
