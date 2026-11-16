@@ -33,6 +33,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(NoSuchElementException.class)
     ResponseEntity<ApiError> notFound(NoSuchElementException e) { return error(HttpStatus.NOT_FOUND, e.getMessage(), null); }
 
+    /** Visible, but the user's access does not allow this action (team or instance access). */
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    ResponseEntity<ApiError> forbidden(org.springframework.security.access.AccessDeniedException e) {
+        return error(HttpStatus.FORBIDDEN, e.getMessage() != null ? e.getMessage() : "Your access does not allow this.", null);
+    }
+
     @ExceptionHandler(ConnectivityBusyException.class)
     ResponseEntity<ApiError> busy(ConnectivityBusyException e) { return error(HttpStatus.TOO_MANY_REQUESTS, e.getMessage(), null); }
 

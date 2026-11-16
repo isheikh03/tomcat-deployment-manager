@@ -24,10 +24,13 @@ public interface DeploymentRunRepository extends JpaRepository<DeploymentRun, Lo
     @Query("""
             select r from DeploymentRun r
             where (:appId = 0 or r.application.id = :appId)
+              and (:all = true or r.application.teamId in :managedTeams
+                   or exists (select t.id from DeploymentTarget t where t.run = r and t.instanceId in :instanceIds))
               and (:environment is null or r.environment = :environment)
               and (:state is null or r.state = :state)
             order by r.requestedAt desc""")
-    Page<DeploymentRun> search(long appId, Environment environment, DeploymentState state, Pageable pageable);
+    Page<DeploymentRun> search(long appId, Environment environment, DeploymentState state, boolean all, Collection<Long> managedTeams,
+                               Collection<Long> instanceIds, Pageable pageable);
 
     @EntityGraph(attributePaths = {"application", "release"})
     List<DeploymentRun> findTop6ByOrderByRequestedAtDesc();
@@ -41,4 +44,8 @@ public interface DeploymentRunRepository extends JpaRepository<DeploymentRun, Lo
 
     @EntityGraph(attributePaths = {"application", "release"})
     List<DeploymentRun> findTop5ByKindOrderByRequestedAtDesc(DeploymentRun.Kind kind);
+
+    /** Ids of the runs of the given teams' applications (for the audit log of an administrator). */
+    @Query("select r.id from DeploymentRun r where r.application.teamId in :teams")
+    List<Long> idsOfTeams(Collection<Long> teams);
 }

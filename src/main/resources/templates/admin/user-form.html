@@ -91,6 +91,99 @@
             </section>
         </div>
     </div>
+
+    <!-- Access: an administrator's teams, or an operator's or viewer's instance grants -->
+    <section class="panel mt-3" id="access" th:if="${account != null}" th:with="r=${account.role.name()}">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+            <div>
+                <h2 class="h5 mb-1">Access</h2>
+                <p class="small text-secondary mb-0" th:if="${r == 'ADMIN'}">An administrator manages the Linux hosts, Tomcat instances, applications, server groups and users of
+                    their teams, and deploys to every instance of those teams.</p>
+                <p class="small text-secondary mb-0" th:if="${r == 'DEPLOYMENT_OPERATOR' or r == 'VIEWER'}">
+                    <span th:text="${r == 'VIEWER'} ? 'A viewer reads' : 'A deployment operator works on'"></span> only the Tomcat instances given here.
+                    Access to a host or a team also covers instances added to it later.</p>
+            </div>
+        </div>
+
+        <div th:if="${r == 'SUPER_ADMIN'}" class="alert alert-light border small mb-0"><i class="bx bx-shield-quarter me-1"></i>Super users have access to every team. Nothing to assign.</div>
+        <div th:if="${selfAccess and r != 'SUPER_ADMIN'}" class="alert alert-light border small mb-2"><i class="bx bx-info-circle me-1"></i>You cannot change your own access.</div>
+
+        <!-- Administrator: teams -->
+        <form th:if="${r == 'ADMIN'}" method="post" th:action="@{/admin/users/{id}/teams(id=${account.id})}">
+            <div class="row g-2 mb-3">
+                <div class="col-12 col-md-6 col-xl-4" th:each="t : ${assignableTeams}">
+                    <label class="method-card d-flex gap-2 align-items-start h-100 mb-0">
+                        <input class="form-check-input mt-1" type="checkbox" name="teamIds" th:value="${t.id}"
+                               th:checked="${assignedTeamIds.contains(t.id)}" th:disabled="${selfAccess}">
+                        <span><strong th:text="${t.name}"></strong><small class="d-block text-secondary" th:text="${t.description ?: ' '}"></small></span>
+                    </label>
+                </div>
+            </div>
+            <p th:if="${#lists.isEmpty(assignableTeams)}" class="small text-muted">No teams yet.
+                <a th:if="${superActor}" th:href="@{/admin/teams/new}">Create a team</a></p>
+            <p th:if="${assignedTeamIds.isEmpty() and !#lists.isEmpty(assignableTeams)}" class="small text-warning"><i class="bx bx-error-circle me-1"></i>No team assigned yet: this administrator sees nothing.</p>
+            <button th:unless="${selfAccess or #lists.isEmpty(assignableTeams)}" class="btn btn-primary" type="submit">Save teams</button>
+            <span th:unless="${superActor}" class="small text-secondary ms-2">You can assign only the teams you administer.</span>
+        </form>
+
+        <!-- Operator / viewer: grants -->
+        <th:block th:if="${r == 'DEPLOYMENT_OPERATOR' or r == 'VIEWER'}">
+            <div class="table-responsive mb-3">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Access to</th><th>Team</th><th>Level</th><th>Expires</th><th>Reason</th><th>Given by</th><th></th></tr></thead>
+                    <tbody>
+                    <tr th:each="g : ${grants}" th:classappend="${!g.active()} ? ' text-muted'">
+                        <td><span class="badge text-bg-light border me-1" th:text="${g.scopeLabel()}"></span><span class="fw-semibold" th:text="${g.target()}"></span></td>
+                        <td th:text="${g.teamName() ?: '—'}"></td>
+                        <td><span class="badge" th:classappend="${r == 'VIEWER' or g.grant().level.name() == 'VIEW'} ? ' bg-secondary-transparent' : ' bg-success-transparent'"
+                                  th:text="${r == 'VIEWER'} ? 'View' : ${g.grant().level.label()}"></span></td>
+                        <td class="small text-nowrap"><span th:if="${g.grant().expiresAt == null}">Never</span>
+                            <span th:if="${g.grant().expiresAt != null}" th:text="${@time.format(g.grant().expiresAt)}"></span>
+                            <span th:unless="${g.active()}" class="badge text-bg-secondary ms-1">Expired</span></td>
+                        <td class="small" th:text="${g.grant().reason ?: '—'}"></td>
+                        <td class="small text-nowrap" th:text="${g.grant().createdBy} + ' · ' + ${@time.format(g.grant().createdAt)}"></td>
+                        <td class="text-end">
+                            <form th:if="${!selfAccess and removableGrantIds.contains(g.grant().id)}" method="post"
+                                  th:action="@{/admin/users/{id}/grants/{gid}/delete(id=${account.id},gid=${g.grant().id})}"
+                                  th:attr="data-confirm='Remove access to ' + ${g.target()} + '?'">
+                                <button class="btn btn-icon btn-sm btn-danger-light" type="submit" title="Remove access" aria-label="Remove access"><i class="bx bx-trash"></i></button>
+                            </form></td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(grants)}"><td colspan="7" class="text-center text-warning py-3"><i class="bx bx-error-circle me-1"></i>No access yet: this user sees nothing.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <form th:unless="${selfAccess}" method="post" th:action="@{/admin/users/{id}/grants(id=${account.id})}" class="border rounded p-3">
+                <h3 class="h6 mb-3">Give access</h3>
+                <p th:if="${grantOptions.isEmpty()}" class="small text-muted mb-0">There is nothing you can give access to yet: your teams have no Linux hosts.</p>
+                <div class="row g-2 align-items-end" th:unless="${grantOptions.isEmpty()}">
+                    <div class="col-12 col-lg-5"><label class="form-label" for="grant-target">To</label>
+                        <select class="form-select" id="grant-target" name="target" required>
+                            <option value="">Choose a team, host or instance…</option>
+                            <optgroup label="A whole team" th:unless="${#lists.isEmpty(grantOptions.teams())}">
+                                <option th:each="o : ${grantOptions.teams()}" th:value="${o.value()}" th:text="${o.label()}"></option></optgroup>
+                            <optgroup label="A Linux host" th:unless="${#lists.isEmpty(grantOptions.hosts())}">
+                                <option th:each="o : ${grantOptions.hosts()}" th:value="${o.value()}" th:text="${o.label()}"></option></optgroup>
+                            <optgroup label="One Tomcat instance" th:unless="${#lists.isEmpty(grantOptions.instances())}">
+                                <option th:each="o : ${grantOptions.instances()}" th:value="${o.value()}" th:text="${o.label()}"></option></optgroup>
+                        </select></div>
+                    <div class="col-6 col-lg-2"><label class="form-label" for="grant-level">Level</label>
+                        <select class="form-select" id="grant-level" name="level">
+                            <option th:if="${r == 'DEPLOYMENT_OPERATOR'}" value="DEPLOY">Deploy</option>
+                            <option value="VIEW">View only</option>
+                        </select></div>
+                    <div class="col-6 col-lg-2"><label class="form-label" for="grant-expires">Expires <span class="text-secondary small">(optional)</span></label>
+                        <input class="form-control" type="date" id="grant-expires" name="expires" th:attr="min=${today}"></div>
+                    <div class="col-12 col-lg-3"><label class="form-label" for="grant-reason">Reason <span class="text-secondary small">(optional)</span></label>
+                        <input class="form-control" id="grant-reason" name="reason" maxlength="300" placeholder="e.g. release support"></div>
+                    <div class="col-12"><button class="btn btn-primary" type="submit"><i class="bx bx-plus me-1"></i>Give access</button>
+                        <span class="small text-secondary ms-2" th:if="${r == 'VIEWER'}">Viewers always get View access.</span>
+                        <span class="small text-secondary ms-2" th:unless="${superActor}">You can give access only in the teams you administer.</span></div>
+                </div>
+            </form>
+        </th:block>
+    </section>
 </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

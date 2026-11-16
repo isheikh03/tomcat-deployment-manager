@@ -8,6 +8,7 @@ import java.time.Instant;
  * not to an individual Tomcat instance. Secret columns hold AES-GCM ciphertext only and
  * are never bound from requests or rendered to pages.
  */
+@org.hibernate.annotations.DynamicInsert
 @Entity
 @Table(name = "managed_hosts")
 public class ManagedHost {
@@ -15,6 +16,8 @@ public class ManagedHost {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    /** Owning team, chosen when the record is created and fixed afterwards. Left empty, the database uses the default team. */
+    @Column(name = "team_id", updatable = false) private Long teamId;
     @Column(nullable = false, length = 120)
     private String name;
     @Column(nullable = false, length = 255)
@@ -44,6 +47,8 @@ public class ManagedHost {
     @PreUpdate void onUpdate() { updatedAt = Instant.now(); }
 
     public Long getId() { return id; }
+    public Long getTeamId() { return teamId; }
+    public void setTeamId(Long teamId) { this.teamId = teamId; }
     public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name == null ? null : name.trim(); }

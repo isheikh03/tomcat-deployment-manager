@@ -7,4 +7,5 @@ public interface ManagedHostRepository extends JpaRepository<ManagedHost, Long> 
     Optional<ManagedHost> findByNameIgnoreCase(String name);
     List<ManagedHost> findAllByOrderByNameAsc();
     long countByEnabledTrue();
+    long countByTeamId(Long teamId);
 }

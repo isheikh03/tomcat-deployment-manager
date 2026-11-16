@@ -81,4 +81,5 @@ public interface DeploymentTargetRepository extends JpaRepository<DeploymentTarg
     Optional<String> findLastFilename(Long instanceId, Long applicationId);
 
     long countByState(TargetState state);
+    long countByStateAndInstanceIdIn(TargetState state, Collection<Long> instanceIds);
 }

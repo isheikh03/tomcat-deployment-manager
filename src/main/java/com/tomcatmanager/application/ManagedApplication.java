@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /** A logical deployable system. Releases belong to it; its compatibility requirements apply to all of them. */
+@org.hibernate.annotations.DynamicInsert
 @Entity
 @Table(name = "applications")
 public class ManagedApplication {
@@ -13,6 +14,8 @@ public class ManagedApplication {
     public enum ServletApi { DETECT, JAVAX, JAKARTA }
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
+    /** Owning team, chosen when the record is created and fixed afterwards. Left empty, the database uses the default team. */
+    @Column(name = "team_id", updatable = false) private Long teamId;
     @Column(nullable = false, length = 120) private String name;
     @Column(length = 2000) private String description;
     @Enumerated(EnumType.STRING) @Column(name = "servlet_api", nullable = false, length = 20) private ServletApi servletApi = ServletApi.DETECT;
@@ -28,6 +31,8 @@ public class ManagedApplication {
     @Version private long version;
 
     public Long getId() { return id; }
+    public Long getTeamId() { return teamId; }
+    public void setTeamId(Long teamId) { this.teamId = teamId; }
     public String getName() { return name; }
     public void setName(String v) { name = v == null ? null : v.trim(); }
     public String getDescription() { return description; }

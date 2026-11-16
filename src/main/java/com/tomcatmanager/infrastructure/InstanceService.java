@@ -130,7 +130,9 @@ public class InstanceService {
             log.info("Tomcat Manager password replaced for instance {}", f.getId());
         }
         List<Long> groupIds = f.getGroupIds() == null ? List.of() : f.getGroupIds();
-        i.setGroups(new LinkedHashSet<>(groups.findAllById(groupIds)));
+        // A group belongs to one team: only groups of the host's team can contain this instance.
+        Long team = i.getHost().getTeamId();
+        i.setGroups(new LinkedHashSet<>(groups.findAllById(groupIds).stream().filter(g -> java.util.Objects.equals(g.getTeamId(), team)).toList()));
         TomcatInstance saved = instances.save(i);
         return new InstanceChange(saved, created, !created && (!before.equals(connectionKey(saved)) || credentials != null), credentials);
     }

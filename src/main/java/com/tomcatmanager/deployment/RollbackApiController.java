@@ -24,8 +24,13 @@ public class RollbackApiController {
     private final DeploymentRunRepository runs;
     private final DeploymentApiController deployments;
 
-    public RollbackApiController(RollbackPreflight preflight, RollbackService service, DeploymentRunRepository runs, DeploymentApiController deployments) {
+    private final DeploymentService deploymentService;
+    private final com.tomcatmanager.access.Access access;
+
+    public RollbackApiController(RollbackPreflight preflight, RollbackService service, DeploymentRunRepository runs, DeploymentApiController deployments,
+                                 DeploymentService deploymentService, com.tomcatmanager.access.Access access) {
         this.preflight = preflight; this.service = service; this.runs = runs; this.deployments = deployments;
+        this.deploymentService = deploymentService; this.access = access;
     }
 
     public record PreviewRequest(Long targetId) { }
@@ -47,7 +52,9 @@ public class RollbackApiController {
 
     @GetMapping
     public List<DeploymentApiController.RunDto> recent() {
-        return runs.findTop5ByKindOrderByRequestedAtDesc(DeploymentRun.Kind.ROLLBACK).stream().map(deployments::dto).toList();
+        com.tomcatmanager.access.AccessScope s = access.current();
+        return runs.findTop5ByKindOrderByRequestedAtDesc(DeploymentRun.Kind.ROLLBACK).stream()
+                .filter(r -> deploymentService.visible(r, s)).map(deployments::dto).toList();
     }
 
     @ExceptionHandler(RollbackService.RollbackBlockedException.class)

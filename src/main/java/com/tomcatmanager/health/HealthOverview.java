@@ -38,9 +38,12 @@ public class HealthOverview {
         public List<Row> failing() { return rows.stream().filter(Row::failing).toList(); }
     }
 
-    public Overview overview() {
+    public Overview overview() { return overview(id -> true); }
+
+    /** The overview of the instances accepted by {@code visible} (the user's instances). */
+    public Overview overview(java.util.function.LongPredicate visible) {
         Map<Long, InstanceHealthStatus> byInstance = statuses.findAll().stream().collect(Collectors.toMap(InstanceHealthStatus::getInstanceId, Function.identity()));
-        List<Row> rows = instances.findAllByOrderByNameAsc().stream().map(i -> row(i, byInstance.get(i.getId())))
+        List<Row> rows = instances.findAllByOrderByNameAsc().stream().filter(i -> visible.test(i.getId())).map(i -> row(i, byInstance.get(i.getId())))
                 .sorted(Comparator.comparingInt(HealthOverview::severity).thenComparing(Row::instanceName, String.CASE_INSENSITIVE_ORDER)).toList();
         return new Overview(settings.healthMonitoringEnabled(), properties.monitorInterval().toSeconds(), properties.unhealthyAfterFailures(), rows,
                 count(rows, "HEALTHY"), count(rows, "DEGRADED"), count(rows, "UNHEALTHY"),

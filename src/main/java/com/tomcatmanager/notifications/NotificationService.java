@@ -151,6 +151,27 @@ public class NotificationService implements DisposableBean {
         return category == null ? notifications.findAllByOrderByIdDesc(request) : notifications.findByCategoryOrderByIdDesc(category, request);
     }
 
+    // ---- Limited to the notifications a user may see (about their teams' hosts, instances and deployments) ----
+
+    public long unreadCount(String username, java.util.function.Predicate<Notification> visible) {
+        long upTo = lastRead(username);
+        List<Long> candidates = notifications.findByIdGreaterThanOrderByIdDesc(upTo).stream().filter(visible).map(Notification::getId).toList();
+        if (candidates.isEmpty()) return 0;
+        return candidates.size() - readIds(username, candidates).size();
+    }
+
+    public List<Notification> recent(java.util.function.Predicate<Notification> visible) {
+        return notifications.findTop200ByOrderByIdDesc().stream().filter(visible).limit(8).toList();
+    }
+
+    public Page<Notification> page(Notification.Category category, int page, java.util.function.Predicate<Notification> visible) {
+        List<Notification> all = (category == null ? notifications.findAllByOrderByIdDesc() : notifications.findByCategoryOrderByIdDesc(category))
+                .stream().filter(visible).toList();
+        PageRequest request = PageRequest.of(Math.max(0, page), 25);
+        int from = (int) Math.min(request.getOffset(), all.size());
+        return new org.springframework.data.domain.PageImpl<>(all.subList(from, Math.min(from + 25, all.size())), request, all.size());
+    }
+
     public void markAllRead(String username) {
         long max = notifications.maxId();
         tx.executeWithoutResult(s -> {

@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Quick Deployment follows the release upload policy; only administrators may create applications. */
 @WebMvcTest(QuickDeploymentApiController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, com.tomcatmanager.support.AllAccess.class})
 class QuickDeploymentAuthorizationTest {
     @Autowired MockMvc mvc;
     @MockitoBean QuickDeploymentService service;
@@ -42,7 +42,7 @@ class QuickDeploymentAuthorizationTest {
     @Test void viewerCannotUpload() throws Exception {
         mvc.perform(multipart("/api/quick-deployments/release").file(war()).with(csrf()).with(user("viewer").roles("VIEWER")))
                 .andExpect(status().isForbidden());
-        verify(service, never()).prepare(any(), any(), any(), any(), any(), anyBoolean());
+        verify(service, never()).prepare(any(), any(), any(), any(), any(), any());
     }
 
     @Test void uploadWithoutCsrfIsRejected() throws Exception {
@@ -50,25 +50,25 @@ class QuickDeploymentAuthorizationTest {
     }
 
     @Test void operatorUploadsButMayNotCreateApplications() throws Exception {
-        when(service.prepare(any(), any(), anyString(), any(InputStream.class), anyString(), anyBoolean())).thenReturn(prepared());
+        when(service.prepare(any(), any(), anyString(), any(InputStream.class), anyString(), any())).thenReturn(prepared());
         mvc.perform(multipart("/api/quick-deployments/release").file(war()).with(csrf()).with(user("operator").roles("DEPLOYMENT_OPERATOR")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.releaseId").value(7)).andExpect(jsonPath("$.filenames.1").value("portal.war"));
-        verify(service).prepare(isNull(), isNull(), eq("portal-1.0.war"), any(InputStream.class), eq("operator"), eq(false));
+        verify(service).prepare(isNull(), isNull(), eq("portal-1.0.war"), any(InputStream.class), eq("operator"), any());
     }
 
     @Test void administratorMayCreateApplications() throws Exception {
-        when(service.prepare(any(), any(), anyString(), any(InputStream.class), anyString(), anyBoolean())).thenReturn(prepared());
+        when(service.prepare(any(), any(), anyString(), any(InputStream.class), anyString(), any())).thenReturn(prepared());
         mvc.perform(multipart("/api/quick-deployments/release").file(war()).param("applicationName", "Portal").param("versionLabel", "1.0")
                 .with(csrf()).with(user("admin").roles("ADMIN"))).andExpect(status().isOk());
-        verify(service).prepare(eq("Portal"), eq("1.0"), eq("portal-1.0.war"), any(InputStream.class), eq("admin"), eq(true));
+        verify(service).prepare(eq("Portal"), eq("1.0"), eq("portal-1.0.war"), any(InputStream.class), eq("admin"), any());
     }
 
     @Test void errorsAreClearJson() throws Exception {
-        when(service.prepare(any(), any(), anyString(), any(InputStream.class), anyString(), anyBoolean()))
+        when(service.prepare(any(), any(), anyString(), any(InputStream.class), anyString(), any()))
                 .thenThrow(new InvalidWarException("The archive has no WEB-INF/ directory."));
         mvc.perform(multipart("/api/quick-deployments/release").file(war()).with(csrf()).with(user("admin").roles("ADMIN")))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.message").value("The archive has no WEB-INF/ directory."));
-        when(service.prepare(any(), any(), anyString(), any(InputStream.class), anyString(), anyBoolean()))
+        when(service.prepare(any(), any(), anyString(), any(InputStream.class), anyString(), any()))
                 .thenThrow(new IllegalArgumentException("There is no application named portal."));
         mvc.perform(multipart("/api/quick-deployments/release").file(war()).with(csrf()).with(user("operator").roles("DEPLOYMENT_OPERATOR")))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("There is no application named portal."));

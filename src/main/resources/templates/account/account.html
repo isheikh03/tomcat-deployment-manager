@@ -23,6 +23,35 @@
         <a class="btn btn-primary" th:href="@{/account/password}">Change password</a>
         <p class="small text-secondary mt-3 mb-0">Your role, name and email are managed by an administrator.</p>
     </section>
+
+    <section class="panel mt-3" style="max-width: 720px" th:with="r=${user.role.name()}">
+        <h2 class="h5 mb-2">My access</h2>
+        <p th:if="${r == 'SUPER_ADMIN'}" class="small mb-0"><i class="bx bx-shield-quarter me-1"></i>As a super user you have access to every team, Linux host and Tomcat instance.</p>
+        <th:block th:if="${r == 'ADMIN'}">
+            <p class="small text-secondary">You manage everything in these teams and deploy to all of their Tomcat instances.</p>
+            <a th:each="t : ${myTeams}" class="badge text-bg-light border me-1 fs-13" th:href="@{/admin/teams/{id}(id=${t.id})}" th:text="${t.name}"></a>
+            <p th:if="${#lists.isEmpty(myTeams)}" class="small text-warning mb-0"><i class="bx bx-error-circle me-1"></i>No team is assigned to you yet. Ask a super user.</p>
+        </th:block>
+        <th:block th:if="${r == 'DEPLOYMENT_OPERATOR' or r == 'VIEWER'}">
+            <p class="small text-secondary">The Tomcat instances you can work on. Access to a host or team covers all of its instances.</p>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(myGrants)}">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Access to</th><th>Team</th><th>Level</th><th>Expires</th></tr></thead>
+                    <tbody>
+                    <tr th:each="g : ${myGrants}" th:classappend="${!g.active()} ? ' text-muted'">
+                        <td><span class="badge text-bg-light border me-1" th:text="${g.scopeLabel()}"></span><span th:text="${g.target()}"></span></td>
+                        <td th:text="${g.teamName() ?: '—'}"></td>
+                        <td><span class="badge" th:classappend="${r == 'VIEWER' or g.grant().level.name() == 'VIEW'} ? ' bg-secondary-transparent' : ' bg-success-transparent'"
+                                  th:text="${r == 'VIEWER'} ? 'View' : ${g.grant().level.label()}"></span></td>
+                        <td class="small"><span th:text="${g.grant().expiresAt == null} ? 'Never' : ${@time.format(g.grant().expiresAt)}"></span>
+                            <span th:unless="${g.active()}" class="badge text-bg-secondary ms-1">Expired</span></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p th:if="${#lists.isEmpty(myGrants)}" class="small text-warning mb-0"><i class="bx bx-error-circle me-1"></i>You have no access yet. Ask an administrator of your team.</p>
+        </th:block>
+    </section>
 </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

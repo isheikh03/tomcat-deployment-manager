@@ -103,14 +103,14 @@ class ReleaseLibraryIntegrationTest extends DatabaseIntegrationTest {
         upload(billing, "1.0", warLegacy, "billing-1.0.war");
         releases.setArchived(b.getId(), true, "it");
 
-        assertThat(versions(releases.search(null, "", false, 0, 20))).containsExactlyInAnyOrder("2.4.1", "1.0");
-        assertThat(versions(releases.search(null, "", true, 0, 20))).hasSize(3);
-        assertThat(versions(releases.search(portal.getId(), "", true, 0, 20))).containsExactlyInAnyOrder("2.4.1", "2.5.0");
-        assertThat(versions(releases.search(null, "BILLING", false, 0, 20))).containsExactly("1.0");
+        assertThat(versions(releases.search(null, "", false, 0, 20, com.tomcatmanager.access.AccessScope.everything("test")))).containsExactlyInAnyOrder("2.4.1", "1.0");
+        assertThat(versions(releases.search(null, "", true, 0, 20, com.tomcatmanager.access.AccessScope.everything("test")))).hasSize(3);
+        assertThat(versions(releases.search(portal.getId(), "", true, 0, 20, com.tomcatmanager.access.AccessScope.everything("test")))).containsExactlyInAnyOrder("2.4.1", "2.5.0");
+        assertThat(versions(releases.search(null, "BILLING", false, 0, 20, com.tomcatmanager.access.AccessScope.everything("test")))).containsExactly("1.0");
         String shaPrefix = releases.find(b.getId()).getArtifact().getSha256().substring(0, 10);
-        assertThat(versions(releases.search(null, shaPrefix, true, 0, 20))).containsExactly("2.5.0");
-        assertThat(versions(releases.search(null, "notes for 2.4", false, 0, 20))).containsExactly("2.4.1");
-        Page<Release> page = releases.search(null, "", true, 0, 2);
+        assertThat(versions(releases.search(null, shaPrefix, true, 0, 20, com.tomcatmanager.access.AccessScope.everything("test")))).containsExactly("2.5.0");
+        assertThat(versions(releases.search(null, "notes for 2.4", false, 0, 20, com.tomcatmanager.access.AccessScope.everything("test")))).containsExactly("2.4.1");
+        Page<Release> page = releases.search(null, "", true, 0, 2, com.tomcatmanager.access.AccessScope.everything("test"));
         assertThat(page.getTotalElements()).isEqualTo(3);
         assertThat(page.getTotalPages()).isEqualTo(2);
 

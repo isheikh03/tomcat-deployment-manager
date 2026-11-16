@@ -33,6 +33,26 @@ public class ApplicationService {
         return applications.findById(id).orElseThrow(() -> new NoSuchElementException("Application " + id + " not found."));
     }
 
+    /** The application, if the user may see it (otherwise: not found). */
+    public ManagedApplication findVisible(long id, com.tomcatmanager.access.AccessScope s) {
+        ManagedApplication a = find(id);
+        if (!s.canViewApplication(a.getTeamId())) throw new NoSuchElementException("Application " + id + " not found.");
+        return a;
+    }
+
+    /** The application, if the user administers its team (otherwise: not found or forbidden). */
+    public ManagedApplication findManageable(long id, com.tomcatmanager.access.AccessScope s) {
+        ManagedApplication a = findVisible(id, s);
+        if (!s.canManageApplication(a.getTeamId()))
+            throw new com.tomcatmanager.access.NotPermittedException("Only administrators of this application's team can change it.");
+        return a;
+    }
+
+    /** Applications the user may see, matching the search. */
+    public List<ManagedApplication> searchVisible(String query, com.tomcatmanager.access.AccessScope s) {
+        return search(query).stream().filter(a -> s.canViewApplication(a.getTeamId())).toList();
+    }
+
     public List<ManagedApplication> search(String query) {
         String q = query == null || query.isBlank() ? "" : "%" + query.trim().toLowerCase() + "%";
         return applications.search(q);
@@ -63,6 +83,7 @@ public class ApplicationService {
         if (f.getId() == null) {
             a = new ManagedApplication();
             a.markCreated(actor);
+            a.setTeamId(f.getTeamId()); // chosen once, at registration
         } else {
             a = find(f.getId());
             if (a.getVersion() != f.getVersion())

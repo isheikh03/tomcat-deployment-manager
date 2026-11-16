@@ -88,7 +88,7 @@ class AccountSecurityIntegrationTest extends DatabaseIntegrationTest {
         assertThat(audits("LOGIN_FAILURE")).isEqualTo(6L);
         assertThat(jdbc.queryForObject("select count(*) from audit_events where action = 'LOGIN_FAILURE' and summary like '%now locked%'", Long.class)).isEqualTo(1L);
 
-        accounts.unlock(alice.getId());
+        accounts.unlock(alice.getId(), "admin");
         mvc.perform(formLogin("/login").user("alice").password(PASSWORD)).andExpect(authenticated());
         mvc.perform(formLogin("/login").user("nobody").password(PASSWORD)).andExpect(unauthenticated());
         assertThat(jdbc.queryForObject("select summary from audit_events where actor = 'nobody'", String.class)).contains("unknown username");
@@ -113,7 +113,7 @@ class AccountSecurityIntegrationTest extends DatabaseIntegrationTest {
     }
 
     @Test void administrationIsForAdministratorsOnlyAndSignInNeedsCsrf() throws Exception {
-        create("root", Role.ADMIN, false);
+        create("root", Role.SUPER_ADMIN, false);
         create("vera", Role.VIEWER, false);
         for (String page : new String[] {"/admin/users", "/admin/audit", "/admin/settings", "/admin/users/new"})
             mvc.perform(get(page).with(user("vera").roles("VIEWER"))).andExpect(status().isForbidden());
@@ -125,25 +125,22 @@ class AccountSecurityIntegrationTest extends DatabaseIntegrationTest {
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/login?retry"));
     }
 
-    @Test void theLastAdministratorCannotBeDemotedAndNobodyDemotesThemselves() {
-        AppUser root = create("root", Role.ADMIN, false);
+    @Test void theLastSuperUserCannotBeDemotedAndNobodyChangesTheirOwnRole() {
+        AppUser root = create("root", Role.SUPER_ADMIN, false);
         UserForm demote = UserForm.from(root);
         demote.setRole(Role.VIEWER);
         BeanPropertyBindingResult errors = new BeanPropertyBindingResult(demote, "form");
-        accounts.validate(demote, "someone-else", errors);
-        assertThat(errors.getFieldError("role").getDefaultMessage()).contains("last enabled administrator");
-
-        create("second", Role.ADMIN, false);
-        errors = new BeanPropertyBindingResult(demote, "form");
         accounts.validate(demote, "root", errors);
-        assertThat(errors.getFieldError("role").getDefaultMessage()).contains("your own administrator role");
+        assertThat(errors.getFieldErrors("role")).extracting(e -> e.getDefaultMessage())
+                .anyMatch(m -> m.contains("last enabled super user")).anyMatch(m -> m.contains("your own role"));
 
+        create("second", Role.SUPER_ADMIN, false);
         errors = new BeanPropertyBindingResult(demote, "form");
         accounts.validate(demote, "second", errors);
         assertThat(errors.hasErrors()).isFalse();
         accounts.update(demote, "second");
         assertThat(audits("USER_ROLE_CHANGED")).isEqualTo(1L);
-        assertThat(jdbc.queryForObject("select summary from audit_events where action = 'USER_ROLE_CHANGED'", String.class)).contains("Administrator → Viewer");
+        assertThat(jdbc.queryForObject("select summary from audit_events where action = 'USER_ROLE_CHANGED'", String.class)).contains("Super user → Viewer");
     }
 
     @Test void theFirstAdministratorIsCreatedOnlyWithTheOneTimeSetupToken() throws Exception {
@@ -155,9 +152,9 @@ class AccountSecurityIntegrationTest extends DatabaseIntegrationTest {
 
         bootstrap.completeSetup(bootstrap.currentSetupToken(), "chief", PASSWORD, PASSWORD);
         assertThat(bootstrap.setupOpen()).isFalse();
-        assertThat(users.findByUsernameIgnoreCase("chief").orElseThrow().getRole()).isEqualTo(Role.ADMIN);
+        assertThat(users.findByUsernameIgnoreCase("chief").orElseThrow().getRole()).isEqualTo(Role.SUPER_ADMIN);
         mvc.perform(get("/setup")).andExpect(redirectedUrl("/login"));
-        mvc.perform(formLogin("/login").user("chief").password(PASSWORD)).andExpect(authenticated().withRoles("ADMIN", "DEPLOYMENT_OPERATOR"));
+        mvc.perform(formLogin("/login").user("chief").password(PASSWORD)).andExpect(authenticated().withRoles("SUPER_ADMIN", "ADMIN", "DEPLOYMENT_OPERATOR"));
     }
 
     @Test void auditRecordsCannotBeChangedOrDeleted() {

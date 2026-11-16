@@ -89,6 +89,7 @@ public class HostService {
     public HostChange saveWithChanges(HostForm form) {
         ManagedHost host = form.getId() == null ? new ManagedHost() : find(form.getId());
         boolean created = form.getId() == null;
+        if (created) host.setTeamId(form.getTeamId()); // the team is chosen once, when the host is created
         String connectionBefore = host.getHostname() + "|" + host.getSshPort() + "|" + host.getSshUsername() + "|" + host.isEnabled();
         String previousFingerprint = host.getSshHostKeyFingerprint();
         host.setName(form.getName());

@@ -55,7 +55,7 @@
                 <tbody>
                 <tr th:each="e : ${entries}" th:attr="data-backup-row=${e.backup().id}">
                     <td sec:authorize="hasRole('ADMIN')">
-                        <input th:if="${e.serverBackup()}" type="checkbox" class="form-check-input" name="backupIds" th:value="${e.backup().id}" th:disabled="${e.rollbackPoint()}"
+                        <input th:if="${e.serverBackup() and deletable.contains(e.backup().id)}" type="checkbox" class="form-check-input" name="backupIds" th:value="${e.backup().id}" th:disabled="${e.rollbackPoint()}"
                                th:attr="data-bytes=${e.backup().sizeBytes != null ? e.backup().sizeBytes : 0},aria-label='Select the backup of ' + ${e.target().targetFilename} + ' on ' + ${e.target().instanceName}"
                                th:title="${e.rollbackPoint()} ? 'Current rollback point: delete it with its own Delete button (needs confirmation)' : null"></td>
                     <td><strong th:text="${e.target().instanceName}"></strong>
@@ -81,7 +81,7 @@
                         <a th:if="${e.rollbackPoint()}" sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" class="btn btn-sm btn-outline-danger"
                            th:href="@{/deployments/{id}(id=${e.target().run.id})}"><i class="bx bx-undo me-1"></i>Roll back…</a>
                         <button sec:authorize="hasAnyRole('ADMIN','DEPLOYMENT_OPERATOR')" type="button" class="btn btn-sm btn-outline-secondary" th:attr="data-verify=${e.backup().id}">Verify</button>
-                        <button sec:authorize="hasRole('ADMIN')" th:if="${e.serverBackup()}" type="button" class="btn btn-sm btn-outline-danger"
+                        <button sec:authorize="hasRole('ADMIN')" th:if="${e.serverBackup() and deletable.contains(e.backup().id)}" type="button" class="btn btn-sm btn-outline-danger"
                                 th:attr="data-delete=${e.backup().id},data-label=${e.target().instanceName + ' ' + e.target().contextPath},data-rollback-point=${e.rollbackPoint()},data-library-fallback=${e.target().previousReleaseId != null}">Delete</button>
                     </td>
                 </tr>

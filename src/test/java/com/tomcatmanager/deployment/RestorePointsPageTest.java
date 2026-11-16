@@ -26,12 +26,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Backups are selected and deleted on the Restore points page itself; only administrators get the selection. */
 @WebMvcTest(BackupController.class)
-@Import({SecurityConfig.class, DisplayTime.class})
+@Import({SecurityConfig.class, DisplayTime.class, com.tomcatmanager.support.AllAccess.class})
 class RestorePointsPageTest {
     @Autowired MockMvc mvc;
     @MockitoBean BackupService service;
     @MockitoBean DeploymentProperties properties;
     @MockitoBean StorageCleanupService cleanup;
+    @MockitoBean com.tomcatmanager.infrastructure.TomcatInstanceRepository instanceRepository;
 
     private static BackupService.Entry entry(long backupId, long instanceId, String instance, boolean rollbackPoint) {
         DeploymentBackup backup = mock(DeploymentBackup.class);

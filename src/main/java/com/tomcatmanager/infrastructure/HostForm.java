@@ -12,6 +12,8 @@ import jakarta.validation.constraints.Size;
  */
 public class HostForm {
     private Long id;
+    /** Team of a new host; a host stays in its team. */
+    private Long teamId;
     @NotBlank(message = "Enter a server name.") @Size(max = 120) private String name;
     @NotBlank @Size(max = 255) private String hostname;
     @Min(1) @Max(65535) private int sshPort = 22;
@@ -32,6 +34,7 @@ public class HostForm {
 
     public static HostForm from(ManagedHost h) {
         HostForm f = new HostForm();
+        f.teamId = h.getTeamId();
         f.id = h.getId(); f.name = h.getName(); f.hostname = h.getHostname(); f.sshPort = h.getSshPort();
         f.sshUsername = h.getSshUsername(); f.sshAuthMethod = h.getSshAuthMethod(); f.sshHostKeyFingerprint = h.getSshHostKeyFingerprint();
         f.notes = h.getNotes(); f.enabled = h.isEnabled();
@@ -40,6 +43,7 @@ public class HostForm {
     }
 
     public Long getId() { return id; } public void setId(Long v) { id = v; }
+    public Long getTeamId() { return teamId; } public void setTeamId(Long v) { teamId = v; }
     public String getName() { return name; } public void setName(String v) { name = v; }
     public String getHostname() { return hostname; } public void setHostname(String v) { hostname = v; }
     public int getSshPort() { return sshPort; } public void setSshPort(int v) { sshPort = v; }

@@ -22,7 +22,8 @@ import java.io.InputStream;
 public class QuickDeploymentApiController {
     private final QuickDeploymentService service;
 
-    public QuickDeploymentApiController(QuickDeploymentService service) { this.service = service; }
+    private final com.tomcatmanager.access.Access access;
+    public QuickDeploymentApiController(QuickDeploymentService service, com.tomcatmanager.access.Access access) { this.service = service; this.access = access; }
 
     @PostMapping(value = "/release", consumes = "multipart/form-data")
     public QuickDeploymentService.Prepared upload(@RequestParam("file") MultipartFile file,
@@ -32,7 +33,7 @@ public class QuickDeploymentApiController {
         if (file.isEmpty()) throw new IllegalArgumentException("Choose a .war file to upload.");
         boolean admin = authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         try (InputStream in = file.getInputStream()) {
-            return service.prepare(applicationName, versionLabel, file.getOriginalFilename(), in, authentication.getName(), admin);
+            return service.prepare(applicationName, versionLabel, file.getOriginalFilename(), in, authentication.getName(), access.current());
         }
     }
 

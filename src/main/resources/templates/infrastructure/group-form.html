@@ -16,6 +16,16 @@
         <h1 class="h4 mb-4" th:text="${group.id == null ? 'Create server group' : 'Edit server group'}">Server group</h1>
         <form th:action="@{/infrastructure/groups/save}" th:object="${group}" method="post" novalidate>
             <input type="hidden" th:field="*{id}">
+            <!-- Team: chosen when the group is created, fixed afterwards; a group contains only its team's instances. -->
+            <div class="mb-3" th:if="${group.id == null}"><label class="form-label" for="teamId">Team</label>
+                <select class="form-select" th:field="*{teamId}" th:errorclass="is-invalid" required>
+                    <option value="" th:if="${#lists.size(teams) != 1}">Choose a team…</option>
+                    <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"></option>
+                </select>
+                <div class="invalid-feedback" th:errors="*{teamId}"></div>
+                <div class="form-text">The group can contain only this team's Tomcat instances. It cannot be changed later.</div></div>
+            <div class="mb-3" th:if="${group.id != null and groupTeam != null}"><span class="form-label d-block">Team</span>
+                <span class="badge text-bg-light border" th:text="${groupTeam.name}">Team</span></div>
             <div class="mb-3"><label class="form-label" for="name">Group name</label>
                 <input class="form-control" th:field="*{name}" th:errorclass="is-invalid" required maxlength="100" placeholder="Production - Europe">
                 <div class="invalid-feedback" th:errors="*{name}"></div></div>

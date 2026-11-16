@@ -28,6 +28,7 @@
                        aria-label="Search server groups" data-search-shortcut autocomplete="off">
                 <kbd class="list-search-key" title="Press / to search">/</kbd>
             </div>
+            <select th:replace="~{fragments/access :: teamFilter}"></select>
             <select class="form-select list-size" name="size" aria-label="Rows per page" data-autosubmit>
                 <option th:each="s : ${pageSizes}" th:value="${s}" th:text="${s} + ' rows'" th:selected="${s == view.size}"></option>
             </select>
@@ -50,10 +51,11 @@
 
         <div class="table-responsive" th:if="${view.totalElements > 0}">
             <table class="table table-hover align-middle mb-0 list-table">
-                <thead><tr><th>Name</th><th>Description</th><th>Members</th><th class="text-end">Actions</th></tr></thead>
+                <thead><tr><th>Name</th><th th:if="${showTeams}">Team</th><th>Description</th><th>Members</th><th class="text-end">Actions</th></tr></thead>
                 <tbody>
                 <tr th:each="g : ${view.content}">
                     <td><a class="fw-semibold" th:href="@{/infrastructure/groups/{id}(id=${g.id})}" th:text="${g.name}"></a></td>
+                    <td th:if="${showTeams}"><span th:replace="~{fragments/access :: teamBadge(${teamNames.get(g.teamId)})}"></span></td>
                     <td class="text-secondary" th:text="${g.description ?: '—'}"></td>
                     <td th:with="n=${memberCounts.getOrDefault(g.id, 0L)}">
                         <a th:if="${n > 0}" th:href="@{/infrastructure/instances(group=${g.id})}" th:text="${n == 1 ? '1 instance' : n + ' instances'}">0</a>

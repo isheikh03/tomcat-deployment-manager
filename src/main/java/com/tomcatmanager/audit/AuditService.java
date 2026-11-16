@@ -64,11 +64,33 @@ public class AuditService {
         }
     }
 
+    /**
+     * The part of the audit log a user may read: everything ({@link #EVERYTHING}), or the events by or about the given
+     * users and about the given hosts, instances, server groups, releases and deployments (an administrator's teams).
+     */
+    public record AuditScope(boolean all, java.util.Set<String> actors, java.util.Set<String> hosts, java.util.Set<String> instances,
+                             java.util.Set<String> groups, java.util.Set<String> releases, java.util.Set<String> runs) {
+        public static final AuditScope EVERYTHING = new AuditScope(true, java.util.Set.of(), java.util.Set.of(), java.util.Set.of(),
+                java.util.Set.of(), java.util.Set.of(), java.util.Set.of());
+    }
+
     public Page<AuditEvent> search(String actor, String action, String resourceType, AuditEvent.Outcome outcome, String text,
                                    Instant from, Instant to, int page, int size) {
+        return search(actor, action, resourceType, outcome, text, from, to, page, size, AuditScope.EVERYTHING);
+    }
+
+    public Page<AuditEvent> search(String actor, String action, String resourceType, AuditEvent.Outcome outcome, String text,
+                                   Instant from, Instant to, int page, int size, AuditScope scope) {
         return events.search(blank(actor), blank(action), blank(resourceType), outcome, blank(text),
                 from == null ? Instant.EPOCH : from, to == null ? Instant.parse("9999-01-01T00:00:00Z") : to,
+                scope.all(), orNone(scope.actors()), orNone(scope.hosts()), orNone(scope.instances()), orNone(scope.groups()),
+                orNone(scope.releases()), orNone(scope.runs()),
                 PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 200)));
+    }
+
+    /** "IN ()" is not valid SQL: an empty set becomes "-", which matches no username or numeric id. */
+    private static java.util.Collection<String> orNone(java.util.Set<String> values) {
+        return values == null || values.isEmpty() ? java.util.List.of("-") : values;
     }
 
     public static String currentActor() {

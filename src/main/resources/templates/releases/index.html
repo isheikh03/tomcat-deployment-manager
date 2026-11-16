@@ -20,13 +20,13 @@
         <strong>Stored files are missing.</strong> These releases can no longer be deployed until the files are restored from backup:
         <th:block th:each="r, it : ${missingReleases}"><a class="alert-link" th:href="@{/releases/{id}(id=${r.id})}" th:text="${r.application.name + ' ' + r.versionLabel}"></a><span th:unless="${it.last}">, </span></th:block>.
     </div>
-    <div class="storage-status small mb-3" sec:authorize="hasRole('ADMIN')" th:if="${storageReport != null}">
+    <div class="storage-status small mb-3" sec:authorize="hasRole('SUPER_ADMIN')" th:if="${storageReport != null}">
         <span th:if="${storageReport.healthy()}" class="text-success"><i class="bx bxs-circle fs-10 me-1"></i>Storage check passed</span>
         <span th:unless="${storageReport.healthy()}" class="text-danger"><i class="bx bxs-circle fs-10 me-1"></i>Storage check needs attention</span>
         <span class="text-secondary" th:text="'· last run ' + ${@time.format(storageReport.ranAt())}"></span>
         <form class="d-inline" method="post" th:action="@{/releases/storage-check}"><button class="btn btn-link btn-sm p-0 ms-2 align-baseline">Run check now</button></form>
     </div>
-    <div class="storage-status small mb-3 d-flex flex-wrap align-items-center gap-2" sec:authorize="hasRole('ADMIN')">
+    <div class="storage-status small mb-3 d-flex flex-wrap align-items-center gap-2" sec:authorize="hasRole('SUPER_ADMIN')">
         <i class="bx bx-hdd text-secondary"></i>
         <span th:text="'Release files: ' + ${storedSize} + ' in ' + ${storedCount} + ' file' + (${storedCount == 1} ? '' : 's')"></span>
         <span class="text-secondary" th:if="${removedCount > 0}" th:text="'· ' + ${removedCount} + ' removed to free space'"></span>
@@ -45,13 +45,13 @@
             <label class="form-check-label small" for="archived">Show archived</label>
         </div>
         <!-- Keeps the open tab when the filter is applied (updated by the tab switch). -->
-        <input sec:authorize="hasRole('ADMIN')" type="hidden" name="tab" th:value="${storageTab} ? 'storage' : ''" data-tab-param>
+        <input sec:authorize="hasRole('SUPER_ADMIN')" type="hidden" name="tab" th:value="${storageTab} ? 'storage' : ''" data-tab-param>
         <button class="btn btn-outline-secondary" type="submit">Search</button>
         <a class="btn btn-link" th:if="${filtered}" th:href="${storageTab == true} ? @{/releases(tab='storage')} : @{/releases}">Clear filters</a>
     </form>
 
     <!-- Administrators get a second tab to remove WAR files from storage; everyone else sees just the releases. -->
-    <ul class="nav nav-tabs list-tabs mb-3" role="tablist" sec:authorize="hasRole('ADMIN')">
+    <ul class="nav nav-tabs list-tabs mb-3" role="tablist" sec:authorize="hasRole('SUPER_ADMIN')">
         <li class="nav-item" role="presentation">
             <button class="nav-link" th:classappend="${storageTab} ? '' : ' active'" id="releases-tab" type="button" role="tab"
                     data-bs-toggle="tab" data-bs-target="#tab-releases" aria-controls="tab-releases" data-tab-name=""
@@ -121,7 +121,7 @@
     </section>
     </div>
 
-    <div sec:authorize="hasRole('ADMIN')" class="tab-pane fade" id="tab-storage" role="tabpanel" aria-labelledby="storage-tab"
+    <div sec:authorize="hasRole('SUPER_ADMIN')" class="tab-pane fade" id="tab-storage" role="tabpanel" aria-labelledby="storage-tab"
          th:classappend="${storageTab} ? ' show active' : ''">
         <p class="small text-secondary mb-3">Select the release versions whose WAR file you want to remove, one or several at a time.
             Release records, deployment history and the audit trail are kept; a removed file is restored by uploading the identical WAR again.

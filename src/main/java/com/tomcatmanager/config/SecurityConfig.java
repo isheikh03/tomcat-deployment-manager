@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
  */
 @Configuration
 public class SecurityConfig {
+    private static final String SUPER_ADMIN = "SUPER_ADMIN";
     private static final String ADMIN = "ADMIN";
     private static final String OPERATOR = "DEPLOYMENT_OPERATOR";
 
@@ -60,7 +61,11 @@ public class SecurityConfig {
                         .requestMatchers("/css/**", "/js/**", "/images/**", "/assets/**", "/favicon.ico", "/error").permitAll()
                         .requestMatchers("/login", "/setup").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
-                        // User management, audit log, settings.
+                        // System-wide settings (policies, email, credential re-encryption) belong to super users.
+                        .requestMatchers("/admin/settings", "/admin/settings/**").hasRole(SUPER_ADMIN)
+                        // Creating, renaming and deleting teams: super users. Administrators read their own teams.
+                        .requestMatchers("/admin/teams/new", "/admin/teams/save", "/admin/teams/*/edit", "/admin/teams/*/delete").hasRole(SUPER_ADMIN)
+                        // User management and the audit log: administrators, limited to their teams by the controllers.
                         .requestMatchers("/admin/**").hasRole(ADMIN)
                         // Testing unsaved settings is part of configuring infrastructure.
                         .requestMatchers(HttpMethod.POST, "/api/connectivity-tests/drafts/**").hasRole(ADMIN)
@@ -92,9 +97,13 @@ public class SecurityConfig {
                         // Application registry: administrators manage it; everyone signed in can read it.
                         .requestMatchers(HttpMethod.POST, "/applications/**").hasRole(ADMIN)
                         .requestMatchers("/applications/new", "/applications/*/edit").hasRole(ADMIN)
-                        // Release library: upload per policy, metadata by operators, archive/delete by administrators.
-                        // Storage cleanup (removing release files, bulk-deleting backups) is administrator-only, including its previews.
-                        .requestMatchers("/releases/cleanup", "/backups/cleanup").hasRole(ADMIN)
+                        // Release storage is shared by all teams (one WAR file can serve releases of several teams), so checking it
+                        // and removing release files is for super users only.
+                        .requestMatchers("/releases/cleanup", "/releases/storage-check", "/releases/*/remove-file").hasRole(SUPER_ADMIN)
+                        // Bulk-deleting backups: administrators, limited to their teams' instances by the controller.
+                        .requestMatchers("/backups/cleanup").hasRole(ADMIN)
+                        // Release library: upload per policy, metadata by operators, archive/delete by administrators
+                        // (each limited to the application's team by the controllers).
                         .requestMatchers("/releases/upload").access(uploaders)
                         .requestMatchers(HttpMethod.POST, "/releases/*/metadata").hasAnyRole(ADMIN, OPERATOR)
                         .requestMatchers(HttpMethod.POST, "/releases/**").hasRole(ADMIN)

@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Who may preview, start, cancel, reconcile and roll back deployments and manage backups: enforced on the server. */
 @WebMvcTest({DeploymentApiController.class, DeploymentController.class, RollbackApiController.class, BackupController.class})
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, com.tomcatmanager.support.AllAccess.class})
 class DeploymentAuthorizationTest {
     @Autowired MockMvc mvc;
     @MockitoBean DeploymentService service;
@@ -49,6 +49,16 @@ class DeploymentAuthorizationTest {
     @MockitoBean ConnectionTestService connections;
     @MockitoBean DeploymentProperties properties;
     @MockitoBean StorageCleanupService cleanup;
+
+    /** Backup 1 exists, on instance 5 (the controller looks it up before verifying or deleting it). */
+    @org.junit.jupiter.api.BeforeEach void backupExists() {
+        DeploymentBackup backup = org.mockito.Mockito.mock(DeploymentBackup.class);
+        when(backup.getId()).thenReturn(1L);
+        DeploymentTarget target = org.mockito.Mockito.mock(DeploymentTarget.class);
+        when(target.getInstanceId()).thenReturn(5L);
+        java.util.List<BackupService.Entry> entries = java.util.List.of(new BackupService.Entry(backup, target, false, true));
+        when(backupService.list()).thenReturn(entries);
+    }
 
     @Test void onlyAdministratorsCleanUpBackups() throws Exception {
         mvc.perform(get("/backups/cleanup").with(user("operator").roles("DEPLOYMENT_OPERATOR"))).andExpect(status().isForbidden());
@@ -111,7 +121,7 @@ class DeploymentAuthorizationTest {
     }
 
     @Test void viewersCanReadHistory() throws Exception {
-        org.mockito.Mockito.when(service.search(any(), any(), any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt()))
+        org.mockito.Mockito.when(service.search(any(), any(), any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt(), any()))
                 .thenReturn(org.springframework.data.domain.Page.empty());
         mvc.perform(get("/api/deployments").with(user("viewer").roles("VIEWER"))).andExpect(status().isOk());
     }

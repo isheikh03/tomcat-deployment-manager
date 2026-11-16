@@ -31,8 +31,12 @@ public class RollbackPreflight {
     private final RestorePoints restorePoints;
     private final DeploymentPreflight preflight;
 
-    public RollbackPreflight(DeploymentTargetRepository targets, TomcatInstanceRepository instances, RestorePoints restorePoints, DeploymentPreflight preflight) {
+    private final com.tomcatmanager.access.Access access;
+
+    public RollbackPreflight(DeploymentTargetRepository targets, TomcatInstanceRepository instances, RestorePoints restorePoints, DeploymentPreflight preflight,
+                             com.tomcatmanager.access.Access access) {
         this.targets = targets; this.instances = instances; this.restorePoints = restorePoints; this.preflight = preflight;
+        this.access = access;
     }
 
     public record Preview(Long targetId, Long runId, String applicationName, String replacedVersion, Long instanceId, String instanceName,
@@ -61,6 +65,12 @@ public class RollbackPreflight {
 
     Evaluation evaluateFull(long targetId, String actor) {
         DeploymentTarget original = targets.findWithRun(targetId).orElseThrow(() -> new NoSuchElementException("Deployment target " + targetId + " not found."));
+        // Access: a target on an instance outside the user's access does not exist for them; rolling back needs deploy access.
+        com.tomcatmanager.access.AccessScope scope = access.current();
+        if (original.getInstanceId() == null || !scope.canViewInstance(original.getInstanceId()))
+            throw new NoSuchElementException("Deployment target " + targetId + " not found.");
+        if (!scope.canDeployTo(original.getInstanceId()))
+            throw new com.tomcatmanager.access.NotPermittedException("You need deploy access to " + original.getInstanceName() + " to roll it back.");
         DeploymentRun run = original.getRun();
         List<String> blockers = new ArrayList<>(), warnings = new ArrayList<>();
 

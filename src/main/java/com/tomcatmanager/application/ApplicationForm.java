@@ -14,6 +14,8 @@ public class ApplicationForm {
 
     private Long id;
     private long version;
+    /** Team of a new application; an application stays in its team (it deploys only to that team's instances). */
+    private Long teamId;
     @NotBlank(message = "Enter an application name.") @Size(max = 120) private String name;
     @Size(max = 2000) private String description;
     @NotNull private ManagedApplication.ServletApi servletApi = ManagedApplication.ServletApi.DETECT;
@@ -24,6 +26,7 @@ public class ApplicationForm {
 
     public static ApplicationForm from(ManagedApplication a) {
         ApplicationForm f = new ApplicationForm();
+        f.teamId = a.getTeamId();
         f.id = a.getId(); f.version = a.getVersion(); f.name = a.getName(); f.description = a.getDescription();
         f.servletApi = a.getServletApi(); f.minJavaVersion = a.getMinJavaVersion(); f.maxJavaVersion = a.getMaxJavaVersion();
         f.supportedTomcatVersions = new ArrayList<>(a.getSupportedTomcatList()); f.otherRequirements = a.getOtherRequirements();
@@ -31,6 +34,7 @@ public class ApplicationForm {
     }
 
     public Long getId() { return id; } public void setId(Long v) { id = v; }
+    public Long getTeamId() { return teamId; } public void setTeamId(Long v) { teamId = v; }
     public long getVersion() { return version; } public void setVersion(long v) { version = v; }
     public String getName() { return name; } public void setName(String v) { name = v; }
     public String getDescription() { return description; } public void setDescription(String v) { description = v; }

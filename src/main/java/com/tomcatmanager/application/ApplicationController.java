@@ -1,5 +1,10 @@
 package com.tomcatmanager.application;
 
+import com.tomcatmanager.access.Access;
+import com.tomcatmanager.access.AccessScope;
+import com.tomcatmanager.access.NotPermittedException;
+import com.tomcatmanager.access.Team;
+import com.tomcatmanager.access.TeamRepository;
 import com.tomcatmanager.release.ReleaseRepository;
 import jakarta.validation.Valid;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -12,27 +17,44 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+/**
+ * The application registry. Users see the applications of the teams they have access to; administrators of a team
+ * register and change its applications. An application deploys only to Tomcat instances of its own team.
+ */
 @Controller
 @RequestMapping("/applications")
 public class ApplicationController {
     private final ApplicationService service;
     private final ReleaseRepository releases;
+    private final Access access;
+    private final TeamRepository teams;
 
-    public ApplicationController(ApplicationService service, ReleaseRepository releases) {
-        this.service = service; this.releases = releases;
+    public ApplicationController(ApplicationService service, ReleaseRepository releases, Access access, TeamRepository teams) {
+        this.service = service; this.releases = releases; this.access = access; this.teams = teams;
     }
 
     /** Per-application release count and most recent upload. */
     public record Stats(long releaseCount, Instant latestUpload) { }
 
     @GetMapping
-    public String index(@RequestParam(defaultValue = "") String q, Model model) {
+    public String index(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String team, Model model) {
         Map<Long, Stats> stats = new HashMap<>();
         for (Object[] row : releases.statisticsByApplication()) stats.put((Long) row[0], new Stats((Long) row[1], (Instant) row[2]));
+        com.tomcatmanager.access.AccessScope s = access.current();
+        // Team filter and badges, when the user sees more than one team.
+        java.util.List<com.tomcatmanager.access.Team> teamOptions = teams.findAllByOrderByNameAsc().stream().filter(t -> s.canViewTeam(t.getId())).toList();
+        Long teamId = teamOptions.stream().map(com.tomcatmanager.access.Team::getId).filter(id -> id.toString().equals(team.strip())).findFirst().orElse(null);
+        Map<Long, String> teamNames = new HashMap<>();
+        teamOptions.forEach(t -> teamNames.put(t.getId(), t.getName()));
+        model.addAttribute("teamOptions", teamOptions);
+        model.addAttribute("teamNames", teamNames);
+        model.addAttribute("showTeams", teamOptions.size() > 1);
+        model.addAttribute("team", teamId == null ? "" : teamId.toString());
         model.addAttribute("pageTitle", "Applications");
-        model.addAttribute("applications", service.search(q));
+        model.addAttribute("applications", service.searchVisible(q, s).stream().filter(a -> teamId == null || teamId.equals(a.getTeamId())).toList());
         model.addAttribute("stats", stats);
         model.addAttribute("noStats", new Stats(0, null));
         model.addAttribute("q", q);
@@ -41,21 +63,34 @@ public class ApplicationController {
 
     @GetMapping("/{id}")
     public String detail(@PathVariable long id, Model model) {
-        ManagedApplication app = service.find(id);
+        AccessScope s = access.current();
+        ManagedApplication app = service.findVisible(id, s);
         model.addAttribute("pageTitle", app.getName());
         model.addAttribute("app", app);
+        model.addAttribute("canManage", s.canManageApplication(app.getTeamId()));
+        model.addAttribute("appTeam", app.getTeamId() == null ? null : teams.findById(app.getTeamId()).orElse(null));
         model.addAttribute("releases", releases.findByApplicationIdOrderByUploadedAtDesc(id));
         return "applications/detail";
     }
 
     @GetMapping("/new")
-    public String create(Model model) { return form(model, new ApplicationForm()); }
+    public String create(Model model) {
+        List<Team> mine = manageableTeams(access.current());
+        if (mine.isEmpty()) throw new NotPermittedException("You need a team to register an application. Ask a super user to assign one to you.");
+        ApplicationForm form = new ApplicationForm();
+        if (mine.size() == 1) form.setTeamId(mine.get(0).getId());
+        return form(model, form);
+    }
 
     @GetMapping("/{id}/edit")
-    public String edit(@PathVariable long id, Model model) { return form(model, ApplicationForm.from(service.find(id))); }
+    public String edit(@PathVariable long id, Model model) { return form(model, ApplicationForm.from(service.findManageable(id, access.current()))); }
 
     @PostMapping("/save")
     public String save(@Valid @ModelAttribute("form") ApplicationForm form, BindingResult result, Model model, Principal principal, RedirectAttributes flash) {
+        AccessScope s = access.current();
+        if (form.getId() != null) form.setTeamId(service.findManageable(form.getId(), s).getTeamId()); // an application stays in its team
+        else if (form.getTeamId() == null) result.rejectValue("teamId", "required", "Choose the team this application belongs to.");
+        else if (!s.canManageTeam(form.getTeamId())) result.rejectValue("teamId", "forbidden", "You cannot register applications in this team.");
         service.validate(form, result);
         if (result.hasErrors()) return form(model, form);
         try {
@@ -70,6 +105,7 @@ public class ApplicationController {
 
     @PostMapping("/{id}/delete")
     public String delete(@PathVariable long id, Principal principal, RedirectAttributes flash) {
+        service.findManageable(id, access.current());
         try {
             service.delete(id, principal.getName());
             flash.addFlashAttribute("success", "Application deleted.");
@@ -80,10 +116,16 @@ public class ApplicationController {
         }
     }
 
+    private List<Team> manageableTeams(AccessScope s) {
+        return teams.findAllByOrderByNameAsc().stream().filter(t -> s.canManageTeam(t.getId())).toList();
+    }
+
     private String form(Model model, ApplicationForm form) {
         model.addAttribute("pageTitle", form.getId() == null ? "Register application" : "Edit application");
         model.addAttribute("form", form);
         model.addAttribute("tomcatLines", ApplicationForm.TOMCAT_LINES);
+        model.addAttribute("teams", manageableTeams(access.current()));
+        model.addAttribute("appTeam", form.getTeamId() == null ? null : teams.findById(form.getTeamId()).orElse(null));
         return "applications/form";
     }
 }

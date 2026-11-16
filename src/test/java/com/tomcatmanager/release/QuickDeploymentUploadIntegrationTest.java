@@ -20,6 +20,7 @@ class QuickDeploymentUploadIntegrationTest extends DatabaseIntegrationTest {
     @Autowired ReleaseRepository releases;
     @Autowired ArtifactStorage storage;
     @Autowired JdbcTemplate jdbc;
+    @Autowired com.tomcatmanager.access.TeamRepository teams;
 
     private byte[] warA, warB;
 
@@ -31,7 +32,11 @@ class QuickDeploymentUploadIntegrationTest extends DatabaseIntegrationTest {
     }
 
     private QuickDeploymentService.Prepared prepare(String app, String version, String filename, byte[] war, boolean admin) throws Exception {
-        return quick.prepare(app, version, filename, new ByteArrayInputStream(war), admin ? "admin" : "operator", admin);
+        Long team = teams.findByDefaultTeamTrue().orElseThrow().getId();
+        com.tomcatmanager.access.AccessScope scope = admin ? com.tomcatmanager.access.AccessScope.everything("admin")
+                : com.tomcatmanager.access.AccessScope.of("operator", com.tomcatmanager.users.Role.DEPLOYMENT_OPERATOR, java.util.Set.of(),
+                        java.util.Map.of(), java.util.Set.of(), java.util.Set.of(team), java.util.Set.of(team));
+        return quick.prepare(app, version, filename, new ByteArrayInputStream(war), admin ? "admin" : "operator", scope);
     }
 
     @Test void createsApplicationAndReleaseFromTheFileName() throws Exception {
