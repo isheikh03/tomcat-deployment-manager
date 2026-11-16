@@ -48,6 +48,13 @@
                                     <button class="btn btn-light border" type="button" data-toggle-password="password" aria-label="Show password" title="Show password"><i class="bx bx-show" aria-hidden="true"></i></button>
                                 </div>
                             </div>
+                            <div class="col-12" th:if="${rememberMeDays != null and rememberMeDays > 0}">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="remember-me" name="remember-me" value="true">
+                                    <label class="form-check-label text-default" for="remember-me">Remember me</label>
+                                </div>
+                                <div class="form-text">Keeps you signed in on this browser until you sign out. Don't use it on a shared computer.</div>
+                            </div>
                             <div class="col-12 d-grid mt-2">
                                 <button class="btn btn-lg btn-primary btn-wave" type="submit">Sign in</button>
                             </div>

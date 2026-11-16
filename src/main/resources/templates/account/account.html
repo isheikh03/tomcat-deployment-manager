@@ -24,6 +24,15 @@
         <p class="small text-secondary mt-3 mb-0">Your role, name and email are managed by an administrator.</p>
     </section>
 
+    <section class="panel mt-3" style="max-width: 720px" th:if="${rememberMeDays != null and rememberMeDays > 0}">
+        <h2 class="h5 mb-2">Remembered browsers</h2>
+        <p class="small text-secondary">Where you chose <strong>Remember me</strong> at sign-in, that browser stays signed in until you
+            sign out there. Changing your password also forgets them.</p>
+        <form method="post" th:action="@{/account/forget-browsers}" data-confirm="Forget every remembered browser? You will have to sign in again everywhere you chose Remember me.">
+            <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bx bx-log-out-circle me-1"></i>Forget all remembered browsers</button>
+        </form>
+    </section>
+
     <section class="panel mt-3" style="max-width: 720px" th:with="r=${user.role.name()}">
         <h2 class="h5 mb-2">My access</h2>
         <p th:if="${r == 'SUPER_ADMIN'}" class="small mb-0"><i class="bx bx-shield-quarter me-1"></i>As a super user you have access to every team, Linux host and Tomcat instance.</p>

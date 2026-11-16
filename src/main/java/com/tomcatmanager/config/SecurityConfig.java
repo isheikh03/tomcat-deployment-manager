@@ -46,6 +46,7 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry,
                                             ObjectProvider<LoginSuccessHandler> loginSuccess, ObjectProvider<SettingsService> settings,
+                                            ObjectProvider<org.springframework.security.web.authentication.RememberMeServices> rememberMe,
                                             @Value("${app.release.operator-upload-enabled:true}") boolean operatorUploadDefault) throws Exception {
         PathPatternRequestMatcher api = PathPatternRequestMatcher.withDefaults().matcher("/api/**");
         // Release upload: administrators always; operators while the (runtime) policy allows it.
@@ -112,7 +113,9 @@ public class SecurityConfig {
                         .requestMatchers("/deployments/quick").access(uploaders)
                         .anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").failureUrl("/login?error").permitAll().successHandler(successHandler(loginSuccess)))
-                .logout(logout -> logout.logoutSuccessUrl("/login?logout").invalidateHttpSession(true).clearAuthentication(true).deleteCookies("JSESSIONID"))
+                .logout(logout -> logout.logoutSuccessUrl("/login?logout").invalidateHttpSession(true).clearAuthentication(true).deleteCookies("JSESSIONID", com.tomcatmanager.users.RememberMeConfig.COOKIE))
+                // "Remember me" (persistent tokens, see RememberMeConfig); absent in web-layer tests and when switched off.
+                .rememberMe(remember -> { var services = rememberMe.getIfAvailable(); if (services != null) remember.rememberMeServices(services); else remember.disable(); })
                 .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED), api)
                         .accessDeniedHandler(accessDeniedHandler()))
                 .sessionManagement(session -> session
